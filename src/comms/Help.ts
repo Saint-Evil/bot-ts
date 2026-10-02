@@ -2,7 +2,7 @@ import type { Client, Guild, Message, TextChannel } from 'discord.js';
 import { Db, MongoClient } from 'mongodb';
 import { ICommand, PartialMessage } from '@/types';
 // import config from '../config.json';
-import commands from '../commands';
+import commands from '../commands.js';
 
 class Help implements ICommand { 
   bot: Client | null = null;

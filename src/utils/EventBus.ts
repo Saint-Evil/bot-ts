@@ -1,5 +1,5 @@
 import { createEventBus } from 'ts-event-bus';
-import Events from './Events';
+import Events from './Events.js';
 
 const EventBus = createEventBus({
   events: Events,

@@ -6,7 +6,7 @@ import ytsr, { Video, Image } from 'ytsr'
 import spdl from 'spdl-core';
 import { joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection } from '@discordjs/voice';
 import { Duration } from 'luxon';
-import { ICommand, Song, Queue, VideoItem, PartialMessage, MusicStatus, Response } from '../types';
+import { ICommand, Song, Queue, VideoItem, PartialMessage, MusicStatus, Response } from '../types.js';
 import { Player } from 'discord-music-player';
 
 class Music implements ICommand { 

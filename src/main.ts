@@ -11,17 +11,18 @@ import dotenv from 'dotenv'
 
 import fs from 'fs'
 
-import bot from './utils/bot'
-import commands from './commands'
-import methods from './api/index'
-import client, { connection } from './utils/db'
+import bot from './utils/bot.js'
+import commands from './commands.js'
+import methods from './api/index.js'
+import client, { connection } from './utils/db.js'
 import { Db } from 'mongodb'
-import { prepareTrack } from './utils/soundtrack'
-import { Callback, CallbackProps, DsUser } from './types'
+// folder is <cwd>/src: assets and the track cache live there both for ts-node and for the build/ output
+import { prepareTrack, folder as srcDir } from './utils/soundtrack.js'
+import { Callback, CallbackProps, DsUser } from './types.js'
 import { fileURLToPath } from 'url';
 import { DateTime, Duration } from 'luxon';
-import EventBus from './utils/EventBus';
-import convertVideo from './utils/convertVideo';
+import EventBus from './utils/EventBus.js';
+import convertVideo from './utils/convertVideo.js';
 import { cwd } from 'process';
 
 // const __filename = fileURLToPath(import.meta.url);
@@ -58,7 +59,7 @@ const __dirname = dirname(import.meta.url);
 const app = express()
 app.use(cors())
 app.use(bodyParser.json())
-app.use(express.static(__dirname+'/public/'))
+app.use(express.static(srcDir+'/public/'))
 const http = new Server(app);
 const srv = new SockServ(http, {
   cors: {
@@ -112,7 +113,7 @@ async function run() {
 
   app.get('/', function(req, res){
     console.log('Its trying get me!')
-    res.sendFile(__dirname+'/templates/successful_login.html')
+    res.sendFile(srcDir+'/templates/successful_login.html')
   });
 
   app.get('/auth/discord', async (req, res) => { 
@@ -120,7 +121,7 @@ async function run() {
   //  console.log(token) 
    return token
   }, function(req, res){
-    res.sendFile(__dirname+'/templates/successful_login.html')
+    res.sendFile(srcDir+'/templates/successful_login.html')
   });
 
   app.get('/api/gettrack/:gid', async (req, res) => {

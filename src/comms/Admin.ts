@@ -1,12 +1,12 @@
 // @flow
 import type { ActivityType, Client, Guild, GuildMember, Message, MessageReaction, PartialGuildMember, PartialMessageReaction, PartialUser, Role, TextChannel, User } from 'discord.js';
 import Discord from 'discord.js';
-import { ICommand, Callback, Action, User as LatteUser, PartialMessage } from '../types';
+import { ICommand, Callback, Action, User as LatteUser, PartialMessage } from '../types.js';
 // import config from '../config.json';
-import diff from '../utils/diff';
+import diff from '../utils/diff.js';
 import { Db, MongoClient } from 'mongodb';
 import { forEach } from 'lodash';
-import renderString from '../utils/stringParser';
+import renderString from '../utils/stringParser.js';
 import { EmbedBuilder } from '@discordjs/builders';
 
 const ADMIN_PERMS = 2147483647;

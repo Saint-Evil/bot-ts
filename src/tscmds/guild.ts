@@ -1,7 +1,7 @@
-import db, { connection } from "../utils/db";
+import db, { connection } from "../utils/db.js";
 import { ArgsOf, Client, Guard, SlashGroup } from "discordx";
 import { Discord, Slash, SlashOption } from "discordx";
-import cmds from '../commands'
+import cmds from '../commands.js'
 import { ApplicationCommandOptionType, ChannelType, CommandInteraction, GuildMember, SendableChannels } from "discord.js";
 
 @Discord()

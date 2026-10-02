@@ -1,6 +1,6 @@
 import btoa from 'btoa';
 import fetch from 'node-fetch';
-import { CallbackProps } from '../../types';
+import { CallbackProps } from '../../types.js';
 
 type AuthUser = {
   id: string,

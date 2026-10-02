@@ -1,8 +1,8 @@
-import { ICommand } from './types';
-import Music from './comms/Music.v2';
-import Help from './comms/Help';
-import Admin from './comms/Admin';
-import Utility from './comms/Utility';
+import { ICommand } from './types.js';
+import Music from './comms/Music.v2.js';
+import Help from './comms/Help.js';
+import Admin from './comms/Admin.js';
+import Utility from './comms/Utility.js';
 
 export interface Commands {
   // [key: string]: ICommand

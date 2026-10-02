@@ -2,7 +2,7 @@
   "name": "bot-ts",
   "version": "1.0.0",
   "private": true,
-  "main": "dist/ts/main.js",
+  "main": "build/main.js",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -11,7 +11,7 @@
     "xrun": "ts-node-esm --project tsconfig.json src/main.ts",
     "devi": "esrun --watch src/main.ts",
     "devv": "node --loader ts-node/node-hooks src/main.ts",
-    "serve": "node dist/ts/main.js",
+    "serve": "node build/main.js",
     "start": "nodemon --exec node --loader ts-node/esm/transpile-only src/main.ts",
     "dev": "node --loader ts-node/esm/transpile-only src/main.ts"
   },
@@ -42,6 +42,7 @@
     "spdl-core": "^2.0.2",
     "terminal-link": "^5.0.0",
     "ts-event-bus": "^4.2.0",
+    "tslib": "2.8.1",
     "ytdl-core": "npm:@distube/ytdl-core@^4.16.12",
     "ytpl": "^2.3.0",
     "ytsr": "^3.8.4"

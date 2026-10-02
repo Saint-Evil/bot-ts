@@ -1,9 +1,9 @@
-import db, { connection } from "../utils/db";
+import db, { connection } from "../utils/db.js";
 import type { ArgsOf, Client } from "discordx";
 import { Discord, On } from "discordx";
 import { Guild } from "@/types";
-import cmds from '../commands'
-import wire from '../utils/wire'
+import cmds from '../commands.js'
+import wire from '../utils/wire.js'
 import { ChannelType } from "discord.js";
 import terminalLink from "terminal-link";
 

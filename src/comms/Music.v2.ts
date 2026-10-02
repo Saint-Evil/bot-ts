@@ -1,15 +1,15 @@
 import type { Client, Guild, Message, TextChannel, VoiceChannel } from 'discord.js';
 import { Db } from 'mongodb';
 import fs from 'fs';
-import { prepareTrack, cachedTrack, cleanupTracks as cleanupTrackFiles } from '../utils/soundtrack';
+import { prepareTrack, cachedTrack, cleanupTracks as cleanupTrackFiles } from '../utils/soundtrack.js';
 import ytpl from 'ytpl';
 import ytsr, { Video, Image } from 'ytsr'
 import { joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection, AudioPlayerStatus } from '@discordjs/voice';
 import { DateTime, Duration } from 'luxon';
-import { ICommand, Song, VideoItem, PartialMessage, MusicStatus, Response } from '../types';
+import { ICommand, Song, VideoItem, PartialMessage, MusicStatus, Response } from '../types.js';
 import { Player, Queue, RepeatMode, Utils } from 'discord-music-player';
-import EventBus from '../utils/EventBus';
-import convertVideo from '../utils/convertVideo';
+import EventBus from '../utils/EventBus.js';
+import convertVideo from '../utils/convertVideo.js';
 import { cwd } from 'process';
 
 const folder = cwd() + '/src';

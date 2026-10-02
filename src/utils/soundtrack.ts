@@ -1,9 +1,9 @@
 import fs from 'fs'
 import { cwd } from 'process'
 import { resolve } from 'path'
-import downloadAudio from './downloadAudio'
-import convertVideo from './convertVideo'
-import EventBus from './EventBus'
+import downloadAudio from './downloadAudio.js'
+import convertVideo from './convertVideo.js'
+import EventBus from './EventBus.js'
 
 // Served by express.static from src/public
 export const folder = cwd() + '/src'

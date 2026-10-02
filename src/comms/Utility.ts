@@ -2,8 +2,8 @@ import type { Client, Guild, GuildMember, Message, TextChannel, VoiceBasedChanne
 import { Db, MongoClient } from 'mongodb';
 import { Action, ICommand, PartialMessage } from '@/types';
 // import config from '../config.json';
-import commands from '../commands';
-import timeoutPromise from '../utils/timeoutPromise';
+import commands from '../commands.js';
+import timeoutPromise from '../utils/timeoutPromise.js';
 
 class Utility implements ICommand { 
   bot: Client | null = null;
