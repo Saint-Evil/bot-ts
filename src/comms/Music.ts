@@ -6,7 +6,7 @@ import ytsr, { Video, Image } from 'ytsr'
 import spdl from 'spdl-core';
 import { joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection } from '@discordjs/voice';
 import { Duration } from 'luxon';
-import { ICommand, Song, Queue, VideoItem } from '../types';
+import { ICommand, Song, Queue, VideoItem, PartialMessage, MusicStatus, Response } from '../types';
 import { Player } from 'discord-music-player';
 
 class Music implements ICommand { 
@@ -24,7 +24,7 @@ class Music implements ICommand {
     this.player = player;
   }
 
-  execute = (msg: Message) => {
+  execute = (msg: PartialMessage, isSlash: boolean = false) => {
     return async (args: string[]) => {
       const error = (...msg: string[]) => console.error('[Music].[execute]', ...msg)
       const log = (...msg: string[]) => console.log('[Music].[execute]', ...msg)
@@ -75,7 +75,7 @@ class Music implements ICommand {
       let musiccmd = args.shift();
       if(!musiccmd)
       {
-        msg.channel.send({ content: 'No command to execute. Use `>help music` to get detaled info.' })
+        msg.channel?.send({ content: 'No command to execute. Use `>help music` to get detaled info.' })
         return
       }
       else {
@@ -84,40 +84,50 @@ class Music implements ICommand {
       switch(musiccmd){
         case 'add':
           {
-            if (!voiceChannel) return msg.channel.send({ content: 'You need to be in a voice channel to play music!' });
+            if (!voiceChannel) {
+              const reply = { content: 'You need to be in a voice channel to play music!', embeds: [] }
+              return isSlash ? reply : msg.channel?.send(reply);
+            }
             const permissions = voiceChannel.permissionsFor(me);
             if (!permissions.has('Connect') || !permissions.has('Speak')) {
-              return msg.channel.send({ content: 'I need the permissions to join and speak in your voice channel!' });
+              const reply = { content: 'I need the permissions to join and speak in your voice channel!', embeds: [] }
+              return isSlash ? reply : msg.channel?.send(reply);
             }
             if(serverQueue && serverQueue.playing) {
               if(args.length > 0) {
                 const url = args.shift();
                 let videos: VideoItem[] = [];
-    
+                let reply = { content: 'No query, url or it does not match supported format' }
                 if (!url) {
                   error ('Smth strange with url (args)')
-                  return
+                  const reply = { content: 'No query, url or it does not match supported format' }
+                  return isSlash ? reply : msg.channel?.send(reply);
                 }
-                console.log(url)
+                log(url)
                 if(url.startsWith('https://www.youtube.com/playlist?') || (url.startsWith('https://www.youtube.com/watch?') && (url.includes('&list=') || url.includes('?list=')))) {
                   const playlist = (await ytpl(url)).items; //await (await ytlist(url, 'url')).data.playlist
                   videos = playlist.map(vi => ({ ...vi, source: 'youtube' } as VideoItem));
-                  msg.channel.send(`Added ${videos.length} songs from playist. ${(serverQueue ? serverQueue.songs.length : 0) + videos.length} songs left.`);
+                  reply = { content: `Added ${videos.length} songs from playist. ${(serverQueue ? serverQueue.songs.length : 0) + videos.length} songs left.` }
                 }
                 else if(url.startsWith('https://www.youtube.com/watch?') || url.startsWith('https://youtu.be/')) {
                   videos.push({ shortUrl: url, source: 'youtube' });
-                  msg.channel.send(`Video has been added to playist. ${(serverQueue ? serverQueue.songs.length : 0) + videos.length} songs left.`);
+                  reply = { content: `Video has been added to playist. ${(serverQueue ? serverQueue.songs.length : 0) + videos.length} songs left.` }
                 }
                 else if (url.startsWith('https://open.spotify.com/track/')) {
                   videos.push({ shortUrl: url, source: 'spotify' });
+                  reply = { content: 'Spotify track added to playist.' }
                 }
                 else if (url.startsWith('https://open.spotify.com/playlist/')) {  
-                let queue = this.player.createQueue(msg.guild.id);
-                  await queue.join(msg.member.voice.channel);
+                  let queue = this.player.createQueue(msg.guild.id);
+                  await queue.join(voiceChannel);
+                  let guildQueue = this.player.getQueue(msg.guild.id);
                   let song = await queue.playlist(args.join(' ')).catch(_ => {
                       if(!guildQueue)
                           queue.stop();
                   });
+                  if (song) {
+                    reply = { content: 'Spotify playlist started' }
+                  }
                 } else if (url.startsWith('"')) {
                   const sreq = [ url, ...args ].join(" ").replace('"', '')
                   const sr = (await ytsr(sreq, {
@@ -131,15 +141,17 @@ class Music implements ICommand {
                         ? i.title.toLowerCase().includes('live') 
                         : !i.title.toLowerCase().includes('live')))
                     .map(i => i as Video)
-                  // console.log(sr)
+                  // log(sr)
                   if (sr.length > 0)
                   {
                     videos.push({ shortUrl: sr[0].url, id: sr[0].id, title: sr[0].title, source: 'youtube' })
                   } else {
-                    return msg.channel.send({ content: 'Not found any matching videos' })
+                    const reply = { content: 'Not found any matching videos'}
+                    return isSlash ? reply : msg.channel?.send(reply)
                   }
                 } else {
-                  return msg.channel.send({ content: 'This source is not supported yet' })
+                  const reply = { content: 'This source is not supported yet' }
+                  return isSlash ? reply : msg.channel?.send(reply)
                 }
                 
                 for(const video of videos) {
@@ -163,48 +175,57 @@ class Music implements ICommand {
                   };
                   serverQueue.songs.push(song);
                 }
+                return isSlash ? reply : msg.channel?.send(reply)
               }
             }
           }
           break;
         case 'play':
-          if (!voiceChannel) return msg.channel.send({ content: 'You need to be in a voice channel to play music!' });
+          if (!voiceChannel) {
+            const reply = { content: 'You need to be in a voice channel to play music!' }
+            return isSlash ? reply : msg.channel?.send(reply);
+          }
           const permissions = voiceChannel.permissionsFor(me);
           if (!permissions.has('Connect') || !permissions.has('Speak')) {
-            return msg.channel.send({ content: 'I need the permissions to join and speak in your voice channel!' });
+            const reply = { content: 'I need the permissions to join and speak in your voice channel!' }
+            return isSlash ? reply : msg.channel?.send(reply);
           }
+          let reply = { content: 'Default message' }
 
           if(args.length > 0) {
             const url = args.shift();
             if (!url) {
               error ('Smth strange with url (args)')
-              return
+              const reply = { content: 'No query, url or it does not match supported format' }
+              return isSlash ? reply : msg.channel?.send(reply);
             }
             let videos: VideoItem[] = [];
-
             if(url.startsWith('https://www.youtube.com/playlist?') || (url.startsWith('https://www.youtube.com/watch?') && (url.includes('&list=') || url.includes('?list=')))) {
               const playlist = (await ytpl(url)).items; //await (await ytlist(url, 'url')).data.playlist
               videos = playlist.map(vi => ({ ...vi, source: 'youtube' } as VideoItem));
-              msg.channel.send(`Added ${videos.length} songs from playist. ${(serverQueue ? serverQueue.songs.length : 0) + videos.length} songs left.`);
+              reply.content = `Added ${videos.length} songs from playist. ${(serverQueue ? serverQueue.songs.length : 0) + videos.length} songs left.`
             }
             else if(url.startsWith('https://www.youtube.com/watch?') || url.startsWith('https://youtu.be/')) {
               videos.push({ shortUrl: url, source: 'youtube' });
-              msg.channel.send(`Video has been added to playist. ${(serverQueue ? serverQueue.songs.length : 0) + videos.length} songs left.`);
+              reply.content = `Video has been added to playist. ${(serverQueue ? serverQueue.songs.length : 0) + videos.length} songs left.`
             }
             else if (url.startsWith('https://open.spotify.com/track/')) {
               const nurl = await (await spdl.getInfo(url)).url
-              console.log(nurl)
+              log(nurl)
               videos.push({ shortUrl: nurl, source: 'spotify' });
+              reply.content = 'Spotify track added to playist.'
             }
             else if (url.startsWith('https://open.spotify.com/playlist/')) {
               let queue = this.player.createQueue(msg.guild.id);
-              await queue.join(msg.member.voice.channel);
+              await queue.join(voiceChannel);
               let guildQueue = this.player.getQueue(msg.guild.id);
               let song = await queue.playlist(url).catch(_ => {
                   if(!guildQueue)
                       queue.stop();
               });
-              return
+              if (song) {
+                reply.content = 'Spotify playlist started'
+              }
             }
             else if (url.startsWith('"')) {
               const sreq = [ url, ...args ].join(" ").replace('"', '')
@@ -219,15 +240,18 @@ class Music implements ICommand {
                       ? i.title.toLowerCase().includes('live') 
                       : !i.title.toLowerCase().includes('live')))
                 .map(i => i as Video);
-              // console.log(sr)
+              // log(sr)
               if (sr.length > 0)
               {
                 videos.push({ shortUrl: sr[0].url, id: sr[0].id, title: sr[0].title, source: 'youtube'})
+                reply.content = `${sr[0].title} will now play`
               } else {
-                return msg.channel.send({ content: 'Not found any matching videos' })
+                const reply = { content: 'Not found any matching videos'}
+                return isSlash ? reply : msg.channel?.send(reply)
               }
             } else {
-              return msg.channel.send({ content: 'This source is not supported yet' });
+              const reply = { content: 'This source is not supported yet' }
+              return isSlash ? reply : msg.channel?.send(reply)
             }
             
             for(const video of videos) {
@@ -252,8 +276,8 @@ class Music implements ICommand {
               serverQueue.songs.push(song);
             }
           }else if(!serverQueue || serverQueue.songs.length == 0) {
-            serverQueue.textChannel.send({ content: 'Sorry, nothing to play :(' });
-            return;
+            reply.content = 'Sorry, nothing to play :('
+            return reply
           }
       
           try {
@@ -274,39 +298,57 @@ class Music implements ICommand {
             serverQueue.connection = connection;
             this.play(msg.guildId);
             if(!serverQueue.currentSong)
-              serverQueue.textChannel.send({ content: `Player will now play!` });
-            return;
-          } catch (err) {
+              reply.content = `Player will now play!`
+            return isSlash ? reply : msg.channel?.send(reply)
+          } catch (err: any) {
             console.error(err);
             this.queue.delete(msg.guild.id);
-            serverQueue.textChannel.send({ content: err });
-            return;
+            reply = { content: err };
+            return isSlash ? reply : msg.channel?.send(reply)
           }
           break;
         case 'skip':
-          this.skip(msg, serverQueue, args);
+          {
+            const result = this.skip(msg, serverQueue, args);
+            return isSlash ? result : msg.channel?.send(result)
+          }
           break;
         case 'stop':
-          this.stop(msg, serverQueue);
-          let guildQueue = this.player.getQueue(msg.guild.id);
-          guildQueue?.stop();
+          {
+            const result = this.stop(msg, serverQueue);
+            let guildQueue = this.player.getQueue(msg.guild.id);
+            guildQueue?.stop();
+            return isSlash ? result : msg.channel?.send(result)
+          }
           break;
         case 'pause':
-          this.pause(msg.guild);
+          {
+            const result = this.pause(msg.guild);
+            return isSlash ? result : msg.channel?.send(result)
+          }
           break;
         case 'status':
-          this.status(msg.guild, false);
+          {
+            const result = this.status<Response>(msg.guild.id, false);
+            return isSlash ? result : msg.channel?.send(result)
+          }
           break;
         default: 
-          serverQueue.textChannel.send({ content: 'No such command in command list' })
+          isSlash ? { content: 'No such command in command list' } : serverQueue.textChannel.send({ content: 'No such command in command list' })
           break;
       }
     }
   }
 
-  skip = (message: Message, serverQueue: Queue, args: string[]) => {
-    if (!message.member?.voice.channel) return message.channel.send({ content: 'You have to be in a voice channel to stop the music!' });
-    if (!serverQueue) return message.channel.send({ content: 'There is no song that I could skip!' });
+  skip = (message: PartialMessage, serverQueue: Queue, args: string[]) => {
+    if (!message.member?.voice.channel) {
+      const reply = { content: 'You have to be in a voice channel to stop the music!' }
+      return reply
+    }
+    if (!serverQueue) {
+      const reply = { content: 'There is no song that I could skip!' }
+      return reply
+    } 
     const song = serverQueue.currentSong;
     let toSend = "";
     let minIdx = 0, maxIdx = 1;
@@ -331,11 +373,11 @@ class Music implements ICommand {
     }
     else
       toSend = `${song?.title} skipped!`
-    
-    message.channel.send(toSend).finally(() => {
-      if(minIdx <= 0) serverQueue.connection && serverQueue.connection.dispatcher && serverQueue.connection.dispatcher.end();
-    });
-    
+    const reply = { content: toSend }
+    if(minIdx <= 0) {
+      serverQueue.connection && serverQueue.connection.dispatcher && serverQueue.connection.dispatcher.end()
+    }
+    return reply
   }
 
   apiNext = (guildId: string) => {
@@ -369,7 +411,7 @@ class Music implements ICommand {
           serverQueue.playing = false;
         });
 
-      console.log(dispatcher)
+      log(dispatcher)
       serverQueue.textChannel.send({ content: `${song.title} seeked to ${pos}!` }).finally(() => {
         serverQueue.connection && serverQueue.connection.dispatcher && serverQueue.connection.dispatcher.end();
       });
@@ -377,16 +419,19 @@ class Music implements ICommand {
     }
   }
   
-  stop = (message: Message, serverQueue: Queue) => {
+  stop = (message: PartialMessage, serverQueue: Queue) => {
     const error = (...msg: string[]) => console.error('[Music].[stop]', ...msg)
     const log = (...msg: string[]) => console.log('[Music].[stop]', ...msg)
 
     if (!message.guildId) {
       log('DM')
-      return
+      return { content: 'Not a guild!' }
     }
 
-    if (!message.member?.voice.channel) return message.channel.send({ content: 'You have to be in a voice channel to stop the music!' });
+    if (!message.member?.voice.channel) {
+      const reply = { content: 'You have to be in a voice channel to stop the music!' }
+      return reply
+    }
     serverQueue.songs = [];
     serverQueue.connection && serverQueue.connection.dispatcher &&
     serverQueue.connection.dispatcher.end();
@@ -396,7 +441,7 @@ class Music implements ICommand {
     // message.guild?.members.me
     getVoiceConnection(message.guildId)?.disconnect()
     // serverQueue.voiceChannel.leave();
-    message.channel.send({ content: 'Queue is emptied!' })
+    return { content: 'Queue is emptied!' }
   }
   
   play = async (guildId: string) => {
@@ -462,12 +507,12 @@ class Music implements ICommand {
     
     serverQueue.playing = true;
     try {
-      console.log(song.source)
+      log(song.source)
       let dl;
       if (song.source === 'spotify') {
         dl = await spdl(await (async () => {
          const newURL = (await spdl.getInfo(song.url)).url
-         console.log('________________________>', newURL)
+         log('________________________>', newURL)
          return newURL
         })(), { quality: 'highestaudio', highWaterMark: 1 << 25});
       } else {
@@ -491,12 +536,13 @@ class Music implements ICommand {
         song.author = videoDetails.author
         song.preview = videoDetails.thumbnails[3];
         song.fpreview = videoDetails.thumbnails[4];
-        serverQueue.textChannel.send({ content: `${song.title} will now play` });
+        // serverQueue.textChannel.send({ content: `${song.title} will now play` });
         // console.log(song)
       })
       serverQueue.resource = createAudioResource(dl);
-      serverQueue.connection.subscribe(serverQueue.player)
-      const dispatcher = serverQueue.player?.play(serverQueue.resource)
+      const subscription = serverQueue.connection.subscribe(serverQueue.player)
+      // log('subscription', subscription)
+      serverQueue.player?.play(serverQueue.resource)
 
       dl.on('finish', () => {
           this.play(guildId);
@@ -508,33 +554,38 @@ class Music implements ICommand {
 
         // console.log(song.stream)
         // dispatcher.setVolumeLogarithmic(serverQueue.volume / 5);
-    } catch (ex) {
-      console.error(ex)
+    } catch (ex: any) {
+      error(ex)
       this.play(guildId)
     }
   }
 
   pause = (guild: Guild) => {
     const serverQueue = this.queue.get(guild.id);
-    if(!serverQueue || !serverQueue.currentSong) return
+    let reply = { content: 'No queue or current song!' }
+    if(!serverQueue || !serverQueue.currentSong) return reply
 
     if(!serverQueue.playing) {
-      serverQueue.connection.dispatcher.resume();
+      // serverQueue.connection.dispatcher.resume();
+      serverQueue.player?.unpause();
       serverQueue.playing = true;
-      serverQueue.textChannel.send({ content: 'Player resumed!' });
-      return;
-    } else
-    // if(serverQueue.connection && serverQueue.connection.dispatcher)
+      reply.content = 'Player resumed!'
+    } 
+    else if(serverQueue.connection && serverQueue.connection.dispatcher)
     {
-      serverQueue.connection.dispatcher.pause();
+      // serverQueue.connection.dispatcher.pause();
+      serverQueue.player?.pause();
       serverQueue.playing = false;
-      serverQueue.textChannel.send({ content: 'Player paused'});
-    }  
+      reply.content = 'Player paused'
+    } else {
+      reply.content = 'Nothing to pause :('
+    }
+    return reply
   }
 
-  status = (guild: Guild, api: boolean) => {
+  status = <T>(guildId: string, api: boolean): T => {
     // console.log('STATUS', api)
-    const serverQueue = this.queue.get(guild.id);
+    const serverQueue = this.queue.get(guildId);
     const getPlayingStatus = () => {
       let status = 'Not started.';
       if(!serverQueue || (serverQueue && !serverQueue.currentSong))
@@ -566,6 +617,8 @@ class Music implements ICommand {
 
     const getSongPosition = (api: boolean) => {
       let postition = api ? 0 : '0:00';
+      // console.log('SPOS: ', api, !!serverQueue, !!serverQueue?.currentSong, serverQueue?.connection, serverQueue?.player)
+      
       if(serverQueue && serverQueue.currentSong && serverQueue.connection && serverQueue.connection.dispatcher){
         if (api) {
           return serverQueue.connection.dispatcher.streamTime
@@ -605,7 +658,7 @@ class Music implements ICommand {
         thumb: getThumbnail(api),
         url: (serverQueue && serverQueue.currentSong) ? serverQueue.currentSong.url : null,
         driver: 'ytdl'
-      }
+      } as unknown as T
     }
 
     const embed = {
@@ -683,7 +736,8 @@ class Music implements ICommand {
     }
     
     console.log(embed)
-    serverQueue?.textChannel.send({ content: 'Status', embeds: [embed] });
+    return { content: 'Status', embeds: [embed] } as unknown as T
+    // serverQueue?.textChannel.send();
   }
   
   shortDescription = (): string => {

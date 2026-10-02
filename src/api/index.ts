@@ -16,6 +16,10 @@ import m_pause from './methods/m_pause';
 import m_play from './methods/m_play';
 import m_stop from './methods/m_stop';
 import m_next from './methods/m_next';
+import m_skipto from './methods/m_skipto';
+import m_remove from './methods/m_remove';
+import m_add from './methods/m_add';
+import m_search from './methods/m_search';
 import m_seek from './methods/m_seek';
 import setPrefix from './methods/setPrefix';
 import deleteTrigger from './methods/deleteTrigger';
@@ -50,6 +54,10 @@ export default {
   m_play,
   m_stop,
   m_next,
+  m_skipto,
+  m_remove,
+  m_add,
+  m_search,
   m_seek,
   getsoundtrack,
   setAutochannel,

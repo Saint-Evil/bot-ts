@@ -26,7 +26,7 @@ const getUser = async (accessToken: string, tokenType: string): Promise<AuthUser
       Authorization: `${tokenType} ${accessToken}`
     }
   })).json().catch(console.error))
-  console.log(us)
+  console.log('usr', us)
   return us as AuthUser
 }
 
@@ -50,7 +50,7 @@ export default async function auth_discord({ db, user, accessToken, tokenType }:
   }, {
     upsert: true
   }))
-  console.log(updatedUser)
+  console.log('updusr', updatedUser)
   if (updatedUser && (updatedUser.matchedCount === 1)) {
     const uret = await db.collection('users').findOne({
       id: incomeUser.id

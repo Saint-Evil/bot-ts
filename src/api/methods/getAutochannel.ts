@@ -1,5 +1,5 @@
 import { CallbackProps } from '@/types';
-import { ObjectID } from 'mongodb';
+import { ObjectId } from 'mongodb';
 
 const template = {
   enabled: false,

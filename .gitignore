@@ -4,3 +4,23 @@ node_modules
 dist
 src/api/methods/getguilds.ts
 src/api/methods/getownguilds.ts
+/build
+
+# Tracks cached for the panel's waveform (poff.png in the same folder is part of the app)
+/src/public/temp-*
+
+# yt-dlp binary (platform specific, see YTDLP_PATH)
+/bin/yt-dlp
+/bin/yt-dlp.exe
+
+# Yarn 4: keep patches (discord-music-player is patched), ignore install state and caches
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.pnp.*
+
+# Logs
+*.log

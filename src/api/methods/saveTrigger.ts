@@ -16,10 +16,10 @@ export default async function saveTrigger({db, user, callback}: CallbackProps) {
     },
     {
       upsert: true,
-      returnNewDocument: true,
-      returnOriginal: false
+      returnDocument: 'after',
+      includeResultMetadata: true
     })
-    console.log(updatedCb)
+    console.log('updCb', updatedCb)
   } else {
     updatedCb = await db.collection('callbacks').insertOne(callback)
   }

@@ -1,0 +1,341 @@
+diff --git a/dist/managers/DMPError.js b/dist/managers/DMPError.js
+index d74199b77176cff46a4cc3c2af11c2dc1fbbe163..0e542f54dd9443162c929547057c0d0f88ae6762 100644
+--- a/dist/managers/DMPError.js
++++ b/dist/managers/DMPError.js
+@@ -70,6 +70,7 @@ var DMPErrors;
+     DMPErrors["RESOURCE_NOT_READY"] = "ResourceNotReady";
+     DMPErrors["INVALID_GUILD"] = "InvalidGuild";
+     DMPErrors["SEARCH_NULL"] = "SearchIsNull";
++    DMPErrors["SONG_TOO_LONG"] = "SongTooLong";
+     DMPErrors["INVALID_PLAYLIST"] = "InvalidPlaylist";
+     DMPErrors["INVALID_SPOTIFY"] = "InvalidSpotify";
+     DMPErrors["INVALID_APPLE"] = "InvalidApple";
+@@ -105,6 +106,7 @@ exports.DMPErrorMessages = {
+     ResourceNotReady: 'The AudioResource was not ready.',
+     InvalidGuild: 'The provided Guild was invalid.',
+     SearchIsNull: 'The was no YouTube song found by that query.',
++    SongTooLong: 'The song is longer than the allowed maximum duration.',
+     InvalidSpotify: 'The was no Spotify song found with that link.',
+     InvalidPlaylist: 'There was no Playlist found with that link.',
+     InvalidApple: 'There was no Apple music song with that link',
+diff --git a/dist/managers/Queue.js b/dist/managers/Queue.js
+index a06b17d152ca83afaf412c2364ae8be029528325..dc62add0cdb06b914364bcd941d6935ec2060ce9 100644
+--- a/dist/managers/Queue.js
++++ b/dist/managers/Queue.js
+@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
+ exports.Queue = void 0;
+ const StreamConnection_1 = require("../voice/StreamConnection");
+ const voice_1 = require("@discordjs/voice");
+-const discord_ytdl_core_1 = __importDefault(require("discord-ytdl-core"));
++const YtDlpStream_1 = require("../utils/YtDlpStream");
+ const __1 = require("..");
+ class Queue {
+     /**
+@@ -155,6 +155,9 @@ class Queue {
+             }
+             this.isPlaying = false;
+             let oldSong = this.songs.shift();
++            // A seek position belongs to one playback only (repeat must start from the beginning)
++            if (oldSong)
++                oldSong.seekTime = 0;
+             if (this.songs.length === 0 && this.repeatMode === __1.RepeatMode.DISABLED) {
+                 this.player.emit('queueEnd', this);
+                 if (this.options.leaveOnEnd)
+@@ -227,15 +230,10 @@ class Queue {
+         song = this.songs[0];
+         if (song.seekTime)
+             options.seek = song.seekTime;
+-        let stream = (0, discord_ytdl_core_1.default)(song.url, {
+-            requestOptions: this.player.options.ytdlRequestOptions ?? {},
+-            opusEncoded: false,
++        let stream = (0, YtDlpStream_1.createYtDlpStream)(song.url, {
+             seek: options.seek ? options.seek / 1000 : 0,
+-            fmt: 's16le',
+-            encoderArgs: [],
+-            quality: quality.toLowerCase() === 'low' ? 'lowestaudio' : 'highestaudio',
+-            highWaterMark: 1 << 25,
+-            filter: 'audioonly'
++            quality: quality.toLowerCase(),
++            localFile: this.player.options.localAudio?.(song.url) ?? null
+         })
+             .on('error', (error) => {
+             if (!/Status code|premature close/i.test(error.message))
+@@ -298,6 +296,8 @@ class Queue {
+             time = 0;
+         if (time >= this.nowPlaying.milliseconds)
+             return this.skip();
++        // play() ignores a falsy seek, so seeking back to 0 would keep the old position
++        this.songs[0].seekTime = time;
+         await this.play(this.nowPlaying, {
+             immediate: true,
+             seek: time
+diff --git a/dist/utils/Utils.js b/dist/utils/Utils.js
+index 8c90f698a0ee1915c17d7075d7c8dfb59edefd1c..4ed866d61c17eae1d80e3a739f8ee8c5117e6264 100644
+--- a/dist/utils/Utils.js
++++ b/dist/utils/Utils.js
+@@ -6,7 +6,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
+ exports.Utils = void 0;
+ const __1 = require("..");
+ const isomorphic_unfetch_1 = __importDefault(require("isomorphic-unfetch"));
+-const ytsr_1 = __importDefault(require("ytsr"));
+ const spotify_url_info_1 = __importDefault(require("spotify-url-info"));
+ const apple_music_metadata_1 = require("apple-music-metadata");
+ const youtubei_1 = require("youtubei");
+@@ -54,50 +53,46 @@ class Utils {
+      * @param {number} [Limit=1]
+      * @return {Promise<Song[]>}
+      */
++    /**
++     * Whether a song exceeds PlayerOptions.maxSongDuration (live streams have no duration and pass)
++     * @param {number} seconds
++     * @param {Queue} Queue
++     * @returns {boolean}
++     */
++    static isTooLong(seconds, Queue) {
++        const max = Queue?.player?.options?.maxSongDuration;
++        return !!max && !!seconds && seconds * 1000 > max;
++    }
+     static async search(Search, SOptions = __1.DefaultPlayOptions, Queue, Limit = 1) {
+         SOptions = Object.assign({}, __1.DefaultPlayOptions, SOptions);
+-        let Filters;
+         try {
+-            // Default Options - Type: Video
+-            let FiltersTypes = await ytsr_1.default.getFilters(Search);
+-            Filters = FiltersTypes.get('Type').get('Video');
+-            // Custom Options - Upload date: null
+-            if (SOptions?.uploadDate !== null)
+-                Filters = Array.from((await ytsr_1.default.getFilters(Filters.url))
+-                    .get('Upload date'), ([name, value]) => ({ name, url: value.url }))
+-                    .find(o => o.name.toLowerCase().includes(SOptions?.uploadDate))
+-                    ?? Filters;
+-            // Custom Options - Duration: null
+-            if (SOptions?.duration !== null)
+-                Filters = Array.from((await ytsr_1.default.getFilters(Filters.url))
+-                    .get('Duration'), ([name, value]) => ({ name, url: value.url }))
+-                    .find(o => o.name.toLowerCase().startsWith(SOptions?.duration))
+-                    ?? Filters;
+-            // Custom Options - Sort by: relevance
+-            if (SOptions?.sortBy !== null && SOptions?.sortBy !== 'relevance')
+-                Filters = Array.from((await ytsr_1.default.getFilters(Filters.url))
+-                    .get('Sort by'), ([name, value]) => ({ name, url: value.url }))
+-                    .find(o => o.name.toLowerCase().includes(SOptions?.sortBy))
+-                    ?? Filters;
+-            let Result = await (0, ytsr_1.default)(Filters.url, {
+-                limit: Limit,
+-            });
+-            let items = Result.items;
+-            let songs = items.map(item => {
+-                if (item?.type?.toLowerCase() !== 'video')
+-                    return null;
+-                return new __1.Song({
+-                    name: item.title,
+-                    url: item.url,
+-                    duration: item.duration,
+-                    author: item.author.name,
+-                    isLive: item.isLive,
+-                    thumbnail: item.bestThumbnail.url,
+-                }, Queue, SOptions.requestedBy);
+-            }).filter(I => I);
++            const SearchOptions = { type: 'video' };
++            if (SOptions?.uploadDate)
++                SearchOptions.uploadDate = SOptions.uploadDate;
++            if (SOptions?.duration)
++                SearchOptions.duration = SOptions.duration;
++            if (SOptions?.sortBy && SOptions.sortBy !== 'relevance')
++                SearchOptions.sortBy = SOptions.sortBy === 'view count' ? 'view' : SOptions.sortBy;
++            let Result = await YouTube.search(Search, SearchOptions);
++            let found = Result.items.filter(item => item?.id);
++            let songs = found
++                .filter(item => !this.isTooLong(item.duration ?? 0, Queue))
++                .slice(0, Limit)
++                .map(item => new __1.Song({
++                name: item.title,
++                url: `https://www.youtube.com/watch?v=${item.id}`,
++                duration: this.msToTime((item.duration ?? 0) * 1000),
++                author: item.channel?.name ?? '',
++                isLive: !!item.isLive,
++                thumbnail: item.thumbnails?.best,
++            }, Queue, SOptions.requestedBy));
++            if (songs.length === 0)
++                throw found.length > 0 ? __1.DMPErrors.SONG_TOO_LONG : __1.DMPErrors.SEARCH_NULL;
+             return songs;
+         }
+         catch (e) {
++            if (e === __1.DMPErrors.SONG_TOO_LONG)
++                throw e;
+             throw __1.DMPErrors.SEARCH_NULL;
+         }
+     }
+@@ -138,22 +133,19 @@ class Utils {
+             let VideoID = this.parseVideo(Search);
+             if (!VideoID)
+                 throw __1.DMPErrors.SEARCH_NULL;
+-            YouTube = new youtubei_1.Client({
+-                requestOptions: {
+-                    localAddress: SOptions.localAddress
+-                }
+-            });
+-            let VideoResult = await YouTube.getVideo(VideoID);
++            let VideoResult = await YouTube.getVideo(VideoID).catch(() => null);
+             if (!VideoResult)
+                 throw __1.DMPErrors.SEARCH_NULL;
++            if (this.isTooLong(VideoResult.duration ?? 0, Queue))
++                throw __1.DMPErrors.SONG_TOO_LONG;
+             let VideoTimecode = this.parseVideoTimecode(Search);
+             return new __1.Song({
+                 name: VideoResult.title,
+                 url: Search,
+                 duration: this.msToTime((VideoResult.duration ?? 0) * 1000),
+-                author: VideoResult.channel.name,
+-                isLive: VideoResult.isLiveContent,
+-                thumbnail: VideoResult.thumbnails.best,
++                author: VideoResult.channel?.name ?? '',
++                isLive: !!VideoResult.isLiveContent,
++                thumbnail: VideoResult.thumbnails?.best,
+                 seekTime: SOptions.timecode && VideoTimecode ? Number(VideoTimecode) * 1000 : null,
+             }, Queue, SOptions.requestedBy);
+         }
+@@ -172,6 +164,8 @@ class Utils {
+         if (Search instanceof __1.Song)
+             return Search;
+         _Song = await this.link(Search, SOptions, Queue).catch(error => {
++            if (error === __1.DMPErrors.SONG_TOO_LONG)
++                throw error;
+             if (!(error instanceof TypeError)) {
+                 throw __1.DMPErrors.UNKNOWN; //Ignore typeError
+             }
+@@ -258,12 +252,7 @@ class Utils {
+             let PlaylistID = this.parsePlaylist(Search);
+             if (!PlaylistID)
+                 throw __1.DMPErrors.INVALID_PLAYLIST;
+-            YouTube = new youtubei_1.Client({
+-                requestOptions: {
+-                    localAddress: SOptions.localAddress
+-                }
+-            });
+-            let YouTubeResultData = await YouTube.getPlaylist(PlaylistID);
++            let YouTubeResultData = await YouTube.getPlaylist(PlaylistID).catch(() => null);
+             if (!YouTubeResultData || Object.keys(YouTubeResultData).length === 0)
+                 throw __1.DMPErrors.INVALID_PLAYLIST;
+             let YouTubeResult = {
+@@ -273,18 +262,25 @@ class Utils {
+                 songs: [],
+                 type: 'playlist'
+             };
+-            if (YouTubeResultData instanceof youtubei_1.Playlist && YouTubeResultData.videoCount > 100 && (Limit === -1 || Limit > 100))
+-                await YouTubeResultData.next(Math.floor((Limit === -1 || Limit > YouTubeResultData.videoCount ? YouTubeResultData.videoCount : Limit - 1) / 100));
+-            YouTubeResult.songs = YouTubeResultData.videos.map((video, index) => {
++            let PlaylistVideos = YouTubeResultData.videos;
++            if (YouTubeResultData instanceof youtubei_1.Playlist) {
++                while (PlaylistVideos.continuation && (Limit === -1 || PlaylistVideos.items.length < Limit))
++                    if ((await PlaylistVideos.next()).length === 0)
++                        break;
++                PlaylistVideos = PlaylistVideos.items;
++            }
++            YouTubeResult.songs = PlaylistVideos.map((video, index) => {
+                 if (Limit !== -1 && index >= Limit)
+                     return null;
++                if (this.isTooLong(video.duration ?? 0, Queue))
++                    return null;
+                 let song = new __1.Song({
+                     name: video.title,
+                     url: `https://youtube.com/watch?v=${video.id}`,
+                     duration: this.msToTime((video.duration ?? 0) * 1000),
+-                    author: video.channel.name,
+-                    isLive: video.isLive,
+-                    thumbnail: video.thumbnails.best,
++                    author: video.channel?.name ?? '',
++                    isLive: !!video.isLive,
++                    thumbnail: video.thumbnails?.best,
+                 }, Queue, SOptions.requestedBy);
+                 song.data = SOptions.data;
+                 return song;
+diff --git a/dist/utils/YtDlpStream.js b/dist/utils/YtDlpStream.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..a491b6b193b33b57a5a4f091c134949c8a9d920a
+--- /dev/null
++++ b/dist/utils/YtDlpStream.js
+@@ -0,0 +1,83 @@
++"use strict";
++Object.defineProperty(exports, "__esModule", { value: true });
++exports.createYtDlpStream = exports.resolveYtDlpPath = void 0;
++const child_process_1 = require("child_process");
++const fs_1 = require("fs");
++const path_1 = require("path");
++const prism_media_1 = require("prism-media");
++/**
++ * Path to the yt-dlp binary: YTDLP_PATH env, then ./bin/yt-dlp(.exe), then yt-dlp from PATH
++ * @returns {string}
++ */
++function resolveYtDlpPath() {
++    if (process.env.YTDLP_PATH)
++        return process.env.YTDLP_PATH;
++    const local = (0, path_1.join)(process.cwd(), 'bin', process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
++    return (0, fs_1.existsSync)(local) ? local : 'yt-dlp';
++}
++exports.resolveYtDlpPath = resolveYtDlpPath;
++/**
++ * ffmpeg for yt-dlp's section downloads: FFMPEG_PATH env, then ffmpeg-static, then ffmpeg from PATH
++ * @returns {string}
++ */
++function resolveFfmpegPath() {
++    if (process.env.FFMPEG_PATH)
++        return (0, path_1.resolve)(process.env.FFMPEG_PATH);
++    try {
++        return require('ffmpeg-static') || 'ffmpeg';
++    }
++    catch {
++        return 'ffmpeg';
++    }
++}
++/**
++ * Downloads audio with yt-dlp and transcodes it to raw s16le 48kHz stereo PCM
++ * @param {string} url
++ * @param {{ seek?: number, quality?: string, localFile?: string|null }} [options] seek in seconds;
++ * localFile is an already downloaded copy of the song to play (and seek) from instead of YouTube
++ * @returns {import('stream').Readable}
++ */
++function createYtDlpStream(url, options = {}) {
++    if (options.localFile) {
++        // -ss before -i seeks within the file instantly
++        const transcoder = new prism_media_1.FFmpeg({ args: [
++            '-nostdin', '-loglevel', '0',
++            ...(options.seek > 0 ? ['-ss', String(options.seek)] : []),
++            '-i', options.localFile,
++            '-f', 's16le', '-ar', '48000', '-ac', '2'
++        ] });
++        transcoder.end();
++        return transcoder;
++    }
++    const format = options.quality === 'low' ? 'worstaudio/bestaudio/best' : 'bestaudio/best';
++    const ytdlpArgs = ['-f', format, '-o', '-', '--quiet', '--no-warnings', '--no-playlist', '--no-part'];
++    // Let yt-dlp start the download at the position: skipping on our side means downloading
++    // everything before it at YouTube's throttled speed (minutes deep into long videos)
++    if (options.seek > 0)
++        ytdlpArgs.push('--download-sections', `*${options.seek}-inf`, '--ffmpeg-location', resolveFfmpegPath());
++    const ytdlp = (0, child_process_1.spawn)(resolveYtDlpPath(), [...ytdlpArgs, url], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
++    const args = ['-analyzeduration', '0', '-loglevel', '0', '-f', 's16le', '-ar', '48000', '-ac', '2'];
++    const transcoder = new prism_media_1.FFmpeg({ args });
++    let stderr = '';
++    ytdlp.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-2000); });
++    ytdlp.stdout.on('error', () => { });
++    ytdlp.on('error', error => {
++        if (!transcoder.destroyed)
++            transcoder.destroy(error.code === 'ENOENT'
++                ? new Error(`yt-dlp not found (${resolveYtDlpPath()}). Install yt-dlp or set YTDLP_PATH`)
++                : error);
++    });
++    ytdlp.on('close', code => {
++        if (code && !transcoder.destroyed) {
++            const message = stderr.trim().split('\n').pop() || `yt-dlp exited with code ${code}`;
++            transcoder.destroy(new Error(/unavailable|private|removed/i.test(message) ? 'Video unavailable' : message));
++        }
++    });
++    transcoder.on('close', () => {
++        if (ytdlp.exitCode === null)
++            ytdlp.kill();
++    });
++    ytdlp.stdout.pipe(transcoder);
++    return transcoder;
++}
++exports.createYtDlpStream = createYtDlpStream;

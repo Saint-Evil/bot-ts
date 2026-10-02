@@ -22,7 +22,7 @@ export default async function getChannels({ db, user, bot, guildId }: CallbackPr
   // console.log(body)
 
   // const channels = await (await axios.post(`http://localhost:9099/api`, body )).data;
-  const guild = bot.guilds.cache.get(guildId)
+  const guild = await bot.guilds.fetch(guildId)
   // console.log(guild)
     
   // if(memberId && guildId) {
@@ -37,7 +37,7 @@ export default async function getChannels({ db, user, bot, guildId }: CallbackPr
   }
   
   const channels = await (await guild.channels.fetch()).toJSON()
-  // console.log(channels)
+  console.log('chans', channels.map(ch => ch?.name))
   // const owned = guilds.filter(g => g.owner)
 
   return ['channels', channels ]  

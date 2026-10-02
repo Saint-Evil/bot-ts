@@ -12,7 +12,7 @@ export default async function m_play({ db, user, guildId, commands }: CallbackPr
   if(!serverQueue)
     return [ 'error', 'Queue is not found']
   
-  if (!serverQueue.playing && serverQueue.currentSong) {
+  if (serverQueue.paused && serverQueue.nowPlaying) {
     /* @ts-ignore */
     commands?.music.play({ id: guildId })
   } else {

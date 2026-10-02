@@ -1,7 +1,7 @@
 import { CallbackProps } from "@/types"
 
 export default async function incomeUser({db, user, incomeUser, token}: CallbackProps) {
-  console.log(user, incomeUser)
+  console.log('incUser', user, incomeUser)
   if (!token) {
     return [ 'error', 'Token not provided' ]
   }
@@ -16,9 +16,10 @@ export default async function incomeUser({db, user, incomeUser, token}: Callback
     }
   }, {
     upsert: true,
-    returnDocument: true
+    returnDocument: 'after',
+    includeResultMetadata: true
   })
 
-  console.log(updatedUser)
+  console.log('incUpdUser', updatedUser)
   return [ 'user', updatedUser ]
 }

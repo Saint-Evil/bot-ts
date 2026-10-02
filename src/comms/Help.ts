@@ -1,6 +1,6 @@
 import type { Client, Guild, Message, TextChannel } from 'discord.js';
 import { Db, MongoClient } from 'mongodb';
-import { ICommand } from '@/types';
+import { ICommand, PartialMessage } from '@/types';
 // import config from '../config.json';
 import commands from '../commands';
 
@@ -14,7 +14,7 @@ class Help implements ICommand {
     if(!this.db) this.db = db;
   }
 
-  execute = (msg: Message) => {
+  execute = (msg: PartialMessage, isSlash: boolean = false) => {
     return async (args: string[]) => {
       const error = (...msg: string[]) => console.error('[Help].[execute]', ...msg)
       const log = (...msg: string[]) => console.log('[Help].[execute]', ...msg)
@@ -38,8 +38,7 @@ class Help implements ICommand {
       }
       const guildPrefix = guild.prefix
       if(!helpcmd){
-
-        return this.channel.send({
+        const reply = {
           content: `No command entered, ${msg.member}.\nMy prefix is \`${guildPrefix || '>'}\`.\nYou can use \`${guildPrefix || '>'}help music\` e.g. to get description and detailed help for each command.`,
           embeds: [{
             color: 3447003,
@@ -48,9 +47,13 @@ class Help implements ICommand {
               ...Object.keys(commands).map(cmd => ({name: cmd, value: commands[cmd].shortDescription()}))
             ],
           }]
-        })
+        }
+        if (isSlash) {
+          return reply
+        }
+        return this.channel.send(reply)
       }
-      return this.channel.send({ 
+      const reply = { 
         content: `Detailed help, ${msg.member}`,
         embeds: [{
           title: helpcmd,
@@ -58,7 +61,11 @@ class Help implements ICommand {
           /* @ts-ignore */
           description: `${commands[helpcmd.toLowerCase()].detailedDescription()}`,
         }]
-      });
+      }
+      if (isSlash) {
+        return reply
+      }
+      return this.channel.send(reply);
     }
   }
   

@@ -2,6 +2,7 @@ import ytdl from 'ytdl-core'
 import ffmpeg from 'fluent-ffmpeg'
 import fs from 'fs'
 import { CallbackProps } from '@/types';
+import ReadableStreamClone from 'readable-stream-clone'
 
 
 const convertVideo = (xs: any, format: string) => {
@@ -27,7 +28,7 @@ const convertVideo = (xs: any, format: string) => {
         reject(err);
       })
       .on("end", (stdout, stderr) => {
-        console.log(stdout, stderr);
+        console.log('end', stdout, stderr);
         resolve(convertedFilePath);
       })
       .saveToFile(__dirname+'/public/'+`${convertedFilePath}`);
@@ -41,35 +42,37 @@ export default async function getsoundtrack({ db, user, bot, guildId, commands }
   if(!guildId)
     return [ 'error', 'No guild specified' ]
 
-  console.log(process.cwd())
+  console.log('cwd', process.cwd())
   const servQ = commands?.music.queue.get(guildId)
-  console.log('GETTRACK')
+  console.log('!GETTRACK')
   let ret = '', erro = false
-  if (servQ && servQ.currentSong) {
-    if(fs.existsSync(process.cwd()+'/src'+'/public/'+servQ.currentSong.videoId+'.mp3')) {
-      ret = servQ.currentSong.videoId+'.mp3';
-      return ['soundtrack', ret ] 
-    }
+  if (servQ && servQ.nowPlaying) {
+    // const stream = servQ.nowPlaying.
+    // const clonedStream = new ReadableStreamClone(stream?.pipe())
+    // if(fs.existsSync(process.cwd()+'/src'+'/public/'+servQ.nowPlaying.name+'.mp3')) {
+    //   ret = servQ.nowPlaying.name+'.mp3';
+    //   return ['soundtrack', ret ] 
+    // }
   
-    const writeStream = fs.createWriteStream(process.cwd()+'/src'+'/public/'+servQ.currentSong.videoId+'.webm');
-    const stream = await (ytdl(servQ.currentSong.url, {
-      quality: 'lowestaudio',
-      highWaterMark: 1 << 25
-    })
-    .on('progress', (ln, dd, dl) => {
-      console.log(ln, dd, dl)
-    })
-    .on('end', async function() {
-      console.log(servQ.currentSong?.videoId+'.webm')
-      const vid = await convertVideo(servQ.currentSong?.videoId, 'mp3')
-      console.log(vid)
-      ret = vid
-    })
-    .on('error', (err) => {
-      erro = true
-      ret = err.message
-    })
-    .pipe(writeStream))
+    // const writeStream = fs.createWriteStream(process.cwd()+'/src'+'/public/'+servQ.nowPlaying.name+'.webm');
+    // const stream = await (ytdl(servQ.nowPlaying.url, {
+    //   quality: 'lowestaudio',
+    //   highWaterMark: 1 << 25
+    // })
+    // .on('progress', (ln, dd, dl) => {
+    //   console.log(ln, dd, dl)
+    // })
+    // .on('end', async function() {
+    //   console.log(servQ.nowPlaying?.name+'.webm')
+    //   const vid = await convertVideo(servQ.nowPlaying?.name, 'mp3')
+    //   console.log(vid)
+    //   ret = vid
+    // })
+    // .on('error', (err) => {
+    //   erro = true
+    //   ret = err.message
+    // })
+    // .pipe(writeStream))
   }
 
   if (!erro) {

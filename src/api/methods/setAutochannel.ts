@@ -12,8 +12,8 @@ export default async function setAutochannel({db, user, guildId, autochannel}: C
       autochannel
     }
   }, {
-    returnOriginal: false,
-    returnDocument: true
+    returnDocument: 'after',
+    includeResultMetadata: true
   }))
 
   // console.log('UPD CB', updatedCb)

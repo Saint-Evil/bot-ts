@@ -1,6 +1,6 @@
 import 'reflect-metadata';
 import { dirname, importx } from '@discordx/importer'
-import type { Interaction, Message, MessageReaction, PartialMessageReaction, PartialUser, User } from 'discord.js'
+import { Interaction, Message, MessageReaction, OAuth2Scopes, PartialMessageReaction, PartialUser, User } from 'discord.js'
 
 import { Server } from 'http'
 import { Server as SockServ } from 'socket.io'
@@ -8,7 +8,7 @@ import express from 'express'
 import cors from 'cors'
 import bodyParser from 'body-parser'
 import dotenv from 'dotenv'
-import ffmpeg from 'fluent-ffmpeg'
+
 import fs from 'fs'
 
 import bot from './utils/bot'
@@ -16,14 +16,17 @@ import commands from './commands'
 import methods from './api/index'
 import client, { connection } from './utils/db'
 import { Db } from 'mongodb'
-import ytdl from 'ytdl-core'
+import { prepareTrack } from './utils/soundtrack'
 import { Callback, CallbackProps, DsUser } from './types'
 import { fileURLToPath } from 'url';
+import { DateTime, Duration } from 'luxon';
+import EventBus from './utils/EventBus';
+import convertVideo from './utils/convertVideo';
+import { cwd } from 'process';
 
 // const __filename = fileURLToPath(import.meta.url);
 
 const __dirname = dirname(import.meta.url);
-
 
 // import { IntentsBitField } from 'discord.js';
 // import { Client } from 'discordx';
@@ -63,51 +66,27 @@ const srv = new SockServ(http, {
     methods: ["GET", "POST"]
   }
 });
-dotenv.config()
-
-const convertVideo = (xs: any, format: string) => {
-  const convertedFilePath = `${xs}.${format}`;
-  return new Promise((resolve, reject) => {
-    if (!process.env.FFMPEG_PATH) {
-      console.error('No process.env.FFMPEG_PATH')
-      return null
-    }
-    if (!process.env.FFPROBE_PATH) {
-      console.error('No process.env.FFPROBE_PATH')
-      return null
-    }
-    ffmpeg(__dirname+'/public/'+xs+'.webm')
-      .setFfmpegPath(process.env.FFMPEG_PATH)
-      .setFfprobePath(process.env.FFPROBE_PATH)
-      .toFormat(format)
-      .on("start", commandLine => {
-        console.log(`Spawned Ffmpeg with command: ${commandLine}`);
-      })
-      .on("error", (err, stdout, stderr) => {
-        console.log(err, stdout, stderr);
-        reject(err);
-      })
-      .on("end", (stdout, stderr) => {
-        console.log(stdout, stderr);
-        resolve(convertedFilePath);
-      })
-      .saveToFile(__dirname+'/public/'+`${convertedFilePath}`);
-  });
-};
+dotenv.config({ quiet: true })
 
 bot.once('ready', async () => {
   await bot.guilds.fetch();
   await bot.initApplicationCommands();
   console.log("Bot started");
+  console.log(bot.generateInvite(
+    {
+      scopes: [OAuth2Scopes.Bot],
+      permissions: ['Administrator']
+    }
+  ))
 })
 
 bot.on("interactionCreate", (interaction: Interaction) => {
   bot.executeInteraction(interaction);
 });
 
-bot.on("messageCreate", (message: Message) => {
-  bot.executeCommand(message);
-});
+// bot.on("messageCreate", (message: Message) => {
+//   bot.executeCommand(message);
+// });
 
 // bot.on("messageReactionAdd", (reaction: PartialMessageReaction | MessageReaction, user: PartialUser | User) => {
 //   console.log('reaction', user.toString())
@@ -147,41 +126,14 @@ async function run() {
   app.get('/api/gettrack/:gid', async (req, res) => {
     const guildId = req.params.gid
     const servQ = commands.music.queue.get(guildId)
-    console.log('GETTRACK')
-    if (servQ && servQ.currentSong) {
-      if(fs.existsSync(__dirname+'/public/'+servQ.currentSong.videoId+'.mp3')) {
-        res.send(servQ.currentSong.videoId+'.mp3');
-        return
-      }
-    
-      const writeStream = fs.createWriteStream(__dirname+'/public/'+servQ.currentSong.videoId+'.webm');
-      const stream = ytdl(servQ.currentSong.url, {
-        quality: 'lowestaudio',
-        highWaterMark: 1 << 25
-      })
-      .on('progress', (ln, dd, dl) => {
-        console.log(ln, dd, dl)
-      })
-      .on('end', async function() {
-        console.log(servQ.currentSong?.videoId+'.webm')
-        new Promise<void>((resolve, reject) => {
-          setTimeout( async () => {
-            try {
-              const vid = await convertVideo(servQ.currentSong?.videoId, 'mp3')
-              console.log(vid)
-              res.send(vid);
-              resolve()
-            } catch (e) {
-              reject(e)
-            }
-          }, 500)
-        })
-      })
-      .on('error', () => {
+    console.log('>GETTRACK')
+    if (servQ && servQ.nowPlaying) {
+      console.log('Now playing', servQ.nowPlaying)
+      try {
+        res.send(await prepareTrack(servQ.nowPlaying.url, guildId))
+      } catch (e) {
         res.send('error')
-        return
-      })
-      .pipe(writeStream)
+      }
     }
   })
 
@@ -194,6 +146,34 @@ async function run() {
   srv.on('connection', (socket) => {
     console.log('..new connection')
     let user: DsUser;
+    let guildId: string | undefined = undefined;
+
+    const unsubAudioProg = EventBus.audioProgress.on(({guild, dl, dd}) => {
+      console.log('1pg', guild, dd, dl)
+      if (guildId === guild) {
+
+        socket.emit('audioprogress', {dd, dl});
+      }
+    })
+
+    const unsubTrack = EventBus.soundtrack.on(({guild, track}) => {
+      if (guildId === guild) {
+        socket.emit('soundtrack', track);
+      }
+    })
+
+    const unsubEvts = EventBus.emit.on(({guild, evt}) => {
+      if (guildId === guild) {
+        switch (evt) {
+          case 'songchanged':
+            socket.emit('songchanged');
+            break;
+          case 'queuechanged':
+            socket.emit('queuechanged');
+            break;
+        }
+      }
+    })
 
     socket.on('error', (reason) => {
       console.error('Socket Error', reason);
@@ -204,40 +184,19 @@ async function run() {
 
     socket.on('disconnect', async (reason) => {
       console.error('Socket Disconnect', reason);
+      unsubAudioProg();
+      unsubTrack();
+      unsubEvts();
       if(user)
         await db.collection('users').updateOne( { _id: user._id }, { $set: user } );
     })
 
     socket.on('gettrack', async ({ guildId }) => {
       const servQ = commands.music.queue.get(guildId)
-      console.log('GETTRACK')
-      if (servQ && servQ.currentSong) {
-        if(fs.existsSync(__dirname+'/public/'+servQ.currentSong.videoId+'.mp3')) {
-          socket.emit('soundtrack', servQ.currentSong.videoId+'.mp3');
-          return
-        }
-      
-        const writeStream = fs.createWriteStream(__dirname+'/public/'+servQ.currentSong.videoId+'.webm');
-        const stream = ytdl(servQ.currentSong.url, {
-          quality: 'lowestaudio',
-          highWaterMark: 1 << 25
-        })
-        .on('progress', (ln, dd, dl) => {
-          console.log(ln, dd, dl)
-          socket.emit('audioprogress', { dd, dl })
-        })
-        .on('end', async function() {
-          console.log(servQ.currentSong?.videoId+'.webm')
-          const vid = await convertVideo(servQ.currentSong?.videoId, 'mp3')
-          console.log(vid)
-          socket.emit('soundtrack', vid)
-          // res.send(vid);
-        })
-        .on('error', (err) => {
-          socket.emit('error', err)
-          return
-        })
-        .pipe(writeStream)
+      console.log('--GETTRACK')
+      if (servQ && servQ.nowPlaying) {
+        // Announces the file to the guild via EventBus.soundtrack; errors go to EventBus.error
+        prepareTrack(servQ.nowPlaying.url, servQ.guild.id).catch(() => {})
       }
     })
 
@@ -253,6 +212,9 @@ async function run() {
       if (payload.method !== 'gettrack')
         console.log('method: ', payload.method)
       
+      if (payload.guildId || payload.guild) {
+        guildId = payload.guildId || payload.guild?.id;
+      }
         /* @ts-ignore */
       if (!methods[payload.method]) {
         socket.emit('error', 'Unknown method')
@@ -280,11 +242,20 @@ async function run() {
         return
       }
 
-      /* @ts-ignore */
-      let result: any[] = await methods[payload.method](payload);
-      
+      let result: any[];
+      try {
+        /* @ts-ignore */
+        result = await methods[payload.method](payload);
+      } catch (err) {
+        // A failing panel request must not take the whole bot down
+        console.error('method failed:', payload.method, err)
+        result = [ 'error', (err as Error)?.message || 'Internal error' ]
+      }
+      if (!result)
+        result = [ 'error', 'Empty result' ]
+
       if (result[0] == 'error') {
-        console.log(payload.method, result)
+        console.log('met-res', payload.method, result)
       }
       if(result[0] == 'signin-ok' || result[0] == 'user')
         user = result[1];
@@ -292,7 +263,7 @@ async function run() {
       // console.log('user:: ', user)
       if(cb)
         cb(result);
-      else
+      else if (Array.isArray(result))
         /* @ts-ignore */
         socket.emit(...result);
     })
@@ -310,11 +281,13 @@ async function run() {
   // }
 
   
-  app.listen(process.env.PORT || 80, function(){
+  app.listen(process.env.PORT || 8090, function(){
     console.log(`listening on 82.193.104.224:${process.env.PORT}`);
   });
 
-  srv.listen(Number.parseInt(process.env.PORT_SOCK||'800'))
+  srv.listen(Number.parseInt(process.env.PORT_SOCK||'8099'))
+
+  // bot.on('guildMemberUpdate', commands.admin.onMemberUpdated)
   
   bot.on('messageCreate', async (msg: Message) => {
     // TODO: conditional

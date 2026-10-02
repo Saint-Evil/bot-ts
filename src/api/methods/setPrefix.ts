@@ -14,8 +14,8 @@ export default async function setPrefix({db, user, guild, prefix}: CallbackProps
       prefix: pref
     }
   }, {
-    returnOriginal: false,
-    returnDocument: true
+    returnDocument: 'after',
+    includeResultMetadata: true
   })
   
   // console.log(updatedCb)

@@ -5,28 +5,31 @@ import { Guild } from "@/types";
 import cmds from '../commands'
 import wire from '../utils/wire'
 import { ChannelType } from "discord.js";
+import terminalLink from "terminal-link";
 
 // console = wire
 @Discord()
 export class Guilds {
 
-  @On('voiceStateUpdate')
+  @On({ event: 'voiceStateUpdate' })
   async onVoiceStateUpdate([oldState, newState]: ArgsOf<'voiceStateUpdate'>, client: Client): Promise<void> {
     // wire.log('voice state changed', oldState, newState)
-    if (oldState.member?.user.bot) return;
-
+    
     const guild = await connection.collection('guilds').findOne({
       id: newState.guild.id
     })
-
+    
     if (!guild) return;
-
+    
     const { autochannel } = guild
-
+    if (!autochannel) return;
+    
     if (newState.channel?.name === autochannel.name) {
       // Join
+      if (oldState.member?.user.bot) return;
       if (newState.member && newState.channel?.members.some(member => member.id === newState.member?.id)) {
-        const newChannelName = newState.member?.nickname + '\'s channel'
+        // console.log(`NNAMKE`, newState.member)
+        const newChannelName = newState.member.user.username + '\'s channel'
         const newVoiceChannel = await newState.guild.channels.create({
           name: newChannelName,
           type: ChannelType.GuildVoice,
@@ -48,8 +51,8 @@ export class Guilds {
             autochannel: newAutochannel
           }
         }, {
-          returnOriginal: false,
-          returnDocument: true
+          returnDocument: 'after',
+          includeResultMetadata: true
         }))
   
         /* @ts-ignore */
@@ -61,7 +64,7 @@ export class Guilds {
       wire.log('Not the autochannel')
       // Left last
 
-      if (!newState.channel && oldState.channel && oldState.channel.members.size === 0) {
+      if (oldState.channel && oldState.channel.members.size === 0) {
         const oldChannelName = oldState.channel?.name
         await oldState.channel.delete();
         const newAutochannel = {
@@ -79,8 +82,8 @@ export class Guilds {
             autochannel: newAutochannel
           }
         }, {
-          returnOriginal: false,
-          returnDocument: true
+          returnDocument: 'after',
+          includeResultMetadata: true
         }))
 
         /* @ts-ignore */
@@ -94,7 +97,7 @@ export class Guilds {
     // console.log("Message Deleted", client.user?.username, message.content);
   }
 
-  @On('guildCreate')
+  @On({ event: 'guildCreate' })
   async onGuildCreate([guild]: ArgsOf<'guildCreate'>, client: Client): Promise<void> {
     console.log('create', guild)
     // let guildDb = connection.collection('guilds').findOne({ id: guild.id })
@@ -138,7 +141,7 @@ export class Guilds {
     // console.log("Message Deleted", client.user?.username, message.content);
   }
 
-  @On('guildDelete')
+  @On({ event: 'guildDelete' })
     async onGuildDelete([guild]: ArgsOf<'guildDelete'>, client: Client): Promise<void> {
       console.log('delete', guild)
       // let guildDb = connection.collection('guilds').findOne({ id: guild.id })
@@ -165,9 +168,9 @@ export class Guilds {
       console.log('Done', archived, event, guildDB);
     }
 
-    @On('messageReactionAdd')
+    @On({ event: 'messageReactionAdd' })
     async onMessageReactionAdd([reaction, user]: ArgsOf<'messageReactionAdd'>, client: Client): Promise<void> {
-      console.log('react', user.toString())
+      console.log('react', user.toString(), user.username, terminalLink('Open message', reaction.message.url))
       cmds.admin.init(client, connection)
       // let guildDb = connection.collection('guilds').findOne({ id: guild.id })
       // if ()
@@ -176,14 +179,35 @@ export class Guilds {
       // console.log("Message Deleted", client.user?.username, message.content);
     }
 
-    @On('messageReactionRemove')
+    @On({ event: 'messageReactionRemove' })
     async onMessageReactionRemove([reaction, user]: ArgsOf<'messageReactionAdd'>, client: Client): Promise<void> {
-      console.log('unreact', user.toString())
+      console.log('unreact', user.toString(), user.username, terminalLink('Open message', reaction.message.url) )
       cmds.admin.init(client, connection)
       // let guildDb = connection.collection('guilds').findOne({ id: guild.id })
       // if ()
       cmds.admin.onUndoReact(user, reaction)
       // console.log(guildDB)
       // console.log("Message Deleted", client.user?.username, message.content);
+    }
+
+    @On({ event: 'guildMemberAdd' })
+    async onGuildMemberAdd([member]: ArgsOf<'guildMemberAdd'>, client: Client): Promise<void> {
+      console.log('new user', member.user.username)
+      cmds.admin.init(client, connection)
+      await cmds.admin.onJoin(member)
+    }
+
+    @On({ event: 'guildMemberRemove' })
+    async onGuildMemberRemove([member]: ArgsOf<'guildMemberRemove'>, client: Client): Promise<void> {
+      console.log('user leave', member.user.username)
+      cmds.admin.init(client, connection)
+      await cmds.admin.onLeft(member)
+    }
+
+    @On({ event: 'guildMemberUpdate' })
+    async onGuildMemberUpdate([member, newMember]: ArgsOf<'guildMemberUpdate'>, client: Client): Promise<void> {
+      console.log('user update', member.user.username)
+      cmds.admin.init(client, connection)
+      await cmds.admin.onMemberUpdated(member, newMember)
     }
 }

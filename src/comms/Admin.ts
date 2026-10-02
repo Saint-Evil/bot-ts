@@ -1,7 +1,7 @@
 // @flow
-import type { ActivityType, Client, Guild, GuildMember, Message, MessageReaction, PartialMessageReaction, PartialUser, Role, TextChannel, User } from 'discord.js';
+import type { ActivityType, Client, Guild, GuildMember, Message, MessageReaction, PartialGuildMember, PartialMessageReaction, PartialUser, Role, TextChannel, User } from 'discord.js';
 import Discord from 'discord.js';
-import { ICommand, Callback, Action, User as LatteUser } from '../types';
+import { ICommand, Callback, Action, User as LatteUser, PartialMessage } from '../types';
 // import config from '../config.json';
 import diff from '../utils/diff';
 import { Db, MongoClient } from 'mongodb';
@@ -10,6 +10,7 @@ import renderString from '../utils/stringParser';
 import { EmbedBuilder } from '@discordjs/builders';
 
 const ADMIN_PERMS = 2147483647;
+const DEVELOPER = '252118636716621825';
 
 type ManageGuild = {
   guild: Guild,
@@ -26,7 +27,7 @@ class Admin implements ICommand {
     if(!this.db) this.db = db;
   }
 
-  getIsAllowed = async (msg: Message) => {
+  getIsAllowed = async (msg: PartialMessage) => {
     const error = (...msg: string[]) => console.error('[Admin].[getIsAllowed]', ...msg)
     const log = (...msg: string[]) => console.log('[Admin].[getIsAllowed]', ...msg)
 
@@ -48,12 +49,12 @@ class Admin implements ICommand {
       error('Not registered guild')
       return
     }
-    const perms = cGuild.users.find((u: LatteUser) => u.id === msg.member?.id).rights
+    const perms = cGuild.users?.find((u: LatteUser) => u.id === msg.member?.id).rights || (msg.member.id === DEVELOPER ? 'Admin' : null);
 
     return perms
   }
 
-  execute = (msg: Message) => {
+  execute = (msg: PartialMessage) => {
     return async (args: string[]) => {
       const error = (...msg: string[]) => console.error('[Admin].[execute]', ...msg)
       const log = (...msg: string[]) => console.log('[Admin].[execute]', ...msg)
@@ -78,13 +79,13 @@ class Admin implements ICommand {
       // console.log(msg.member.permissions)
       // if(msg.guild.ownerID !== msg.member.id) {
       if(perms !== 'Admin' && perms !== 'Moder' && !msg.member.permissions.has('Administrator')) {
-        msg.channel.send({ content: 'You had not permission to use this command. Please, contact to guild owner.' });
+        msg.channel?.send({ content: 'You have not permission to use this command. Please, contact to guild owner.' });
         return;
       }
 
       if(args.length === 0)
       {
-        msg.channel.send({ content: 'No commands entered. Please, get help for this provider to get more info for available commands.' });
+        msg.channel?.send({ content: 'No commands entered. Please, get help for this provider to get more info for available commands.' });
         return;
       }
 
@@ -92,28 +93,38 @@ class Admin implements ICommand {
       switch(admcmd) {
         case 'kick':
             {
-              if (!msg.mentions.members){
+              if (!msg.mentions?.members){
                 log('No members mentioned')
-                msg.channel.send({ content: `No members mentioned` })
+                msg.channel?.send({ content: `No members mentioned` })
                 break
               }
               msg.mentions.members.forEach(async member => {
                 await this.kick(member, `(latte) executor: ${msg.member?.displayName}`)
-                msg.channel.send({ content: `${member} have been kicked` })
+                msg.channel?.send({ content: `${member} have been kicked` })
               })
             }
           break;
         case 'ban':
           {
-            if (!msg.mentions.members){
+            if (!msg.mentions?.members){
               log('No members mentioned')
-              msg.channel.send({ content: `No members mentioned` })
+              msg.channel?.send({ content: `No members mentioned` })
               break
             }
             msg.mentions.members.forEach(async member => {
               await this.ban(member, `(latte) executor: ${msg.member?.displayName}`)
-              msg.channel.send({ content: `${member} have been banned` })
+              msg.channel?.send({ content: `${member} have been banned` })
             })
+          }
+          break;
+        case 'disconnect':
+          {
+            if (!msg.mentions?.members){
+              log('No members mentioned')
+              msg.channel?.send({ content: `No members mentioned` })
+              break
+            }
+            this.disconnect([ ...(msg?.mentions.members?.map(v => v) || [])])
           }
           break;
         // case 'shutdown':
@@ -122,7 +133,7 @@ class Admin implements ICommand {
         //   // this.shutdown();
         //   break;
         default:
-          msg.channel.send({ content: 'Unrecognized command. Check if it is right and try again.' })
+          msg.channel?.send({ content: 'Unrecognized command. Check if it is right and try again.' })
           break;
       }
 
@@ -130,7 +141,7 @@ class Admin implements ICommand {
     }
   }
 
-  onJoin = async (member: GuildMember) => {
+  onJoin = async (member: GuildMember | PartialGuildMember) => {
     const error = (...msg: string[]) => console.error('[Admin].[onJoin]', ...msg)
     const log = (...msg: string[]) => console.log('[Admin].[onJoin]', ...msg)
 
@@ -159,19 +170,19 @@ class Admin implements ICommand {
           const greetChannel = member.guild.channels.cache.find(i => i.id === cGuild.greetChannel.id) as TextChannel
           greetChannel?.send({ embeds: [welcomeEmbed]})
         }else{
-          console.log('No greet channel')
+          log('No greet channel')
         }
       }
       if (cGuild.restoreRoles) {
         // for (const rol of )
         // member.addRole()
       }
-    } catch (ex) {
-      console.log(ex)
+    } catch (ex: any) {
+      error(ex)
     }
   }
 
-  onLeft = async (member: GuildMember) => {
+  onLeft = async (member: GuildMember | PartialGuildMember) => {
     const error = (...msg: string[]) => console.error('[Admin].[onJoin]', ...msg)
     const log = (...msg: string[]) => console.log('[Admin].[onJoin]', ...msg)
 
@@ -207,11 +218,11 @@ class Admin implements ICommand {
           const byeChannel = member.guild.channels.cache.find(i => i.id === cGuild.byeChannel.id) as TextChannel
           byeChannel?.send({ embeds: [goodbyeEmbed]})
         }else{
-          console.log('No bye channel')
+          log('No bye channel')
         }
       }
-    } catch (ex) {
-      console.log(ex)
+    } catch (ex: any) {
+      error(ex)
     }
   }
 
@@ -222,12 +233,12 @@ class Admin implements ICommand {
     switch(act.type) {
       case 'AddRole':
         {
-          this.addRole(user, act.role.id);
+          this.addRole(user, act.role?.id);
         }
         break;
       case 'RemoveRole':
         {
-          this.removeRole(user, act.role.id);
+          this.removeRole(user, act.role?.id);
         }
         break;
       case 'Message':
@@ -248,6 +259,11 @@ class Admin implements ICommand {
       case 'Kick':
         {
           this.kick(user, act.condition)
+        }
+        break;
+      case 'Disconnect':
+        {
+          this.disconnect([ ...(msg?.mentions.members?.map(v => v) || [])])
         }
         break;
       case 'SoftBan':
@@ -343,17 +359,18 @@ class Admin implements ICommand {
       })
   }
 
-  onMemberUpdated = async (oldmember: GuildMember, newmember: GuildMember) => {
+  onMemberUpdated = async (oldmember: GuildMember | PartialGuildMember, newmember: GuildMember | PartialGuildMember) => {
     const saveUser: LatteUser = {
       id: newmember.id,
       name: newmember.displayName,
       joinedTimestamp: newmember.joinedTimestamp,
       nickname: newmember.nickname,
+      username: newmember.user.username,
       status: newmember.presence?.status,
-      roles: [ ...newmember.roles.cache.values()],
+      // roles: [ ...newmember.roles.cache.values()],
       _roles: [ ...newmember.roles.cache.keys()] //_roles
     }
-    // console.log(saveUser)
+    // console.log('save', saveUser)
     await this.saveUserToGuild(saveUser, newmember.guild)
   }
 
@@ -414,7 +431,7 @@ class Admin implements ICommand {
     // })
   }
 
-  addRole = (member: GuildMember, role: string | Role) => {
+  addRole = (member: GuildMember, role?: string | Role) => {
     const error = (...msg: string[]) => console.error('[Admin].[addRole]', ...msg)
     const log = (...msg: string[]) => console.log('[Admin].[addRole]', ...msg)
 
@@ -427,7 +444,7 @@ class Admin implements ICommand {
     member.roles.add(irole);
   }
 
-  removeRole = (member: GuildMember, role: string | Role) => {
+  removeRole = (member: GuildMember, role?: string | Role) => {
     const error = (...msg: string[]) => console.error('[Admin].[removeRole]', ...msg)
     const log = (...msg: string[]) => console.log('[Admin].[removeRole]', ...msg)
 
@@ -440,12 +457,19 @@ class Admin implements ICommand {
     member.roles.remove(irole);
   }
 
+  disconnect = (members: GuildMember[]) => {
+    const error = (...msg: string[]) => console.error('[Admin].[disconnect]', ...msg)
+    const log = (...msg: string[]) => console.log('[Admin].[disconnect]', ...msg)
+
+    members.forEach(mem => mem.voice.disconnect());
+  }
+
   react = async (user: User | GuildMember, act: Action, msg?: Message) => {
     const error = (...msg: string[]) => console.error('[Admin].[react]', ...msg)
     const log = (...msg: string[]) => console.log('[Admin].[react]', ...msg)
 
-    if(!msg) {
-      error('No message provided')
+    if(!msg || !act.emoji) {
+      error('No message or emoji provided')
       return
     }
 
@@ -454,12 +478,12 @@ class Admin implements ICommand {
     }
   }
 
-  kick = async (user: GuildMember, reason: string) => {
+  kick = async (user: GuildMember, reason?: string) => {
     if(user.kickable)
       console.log(await user.kick(reason)); 
   }
 
-  ban = async (user: GuildMember, reason: string) => {
+  ban = async (user: GuildMember, reason?: string) => {
     if(user.bannable)
       console.log(await user.ban({
         reason
@@ -493,13 +517,13 @@ class Admin implements ICommand {
         guildDB.users = []
       }
       const userToEdit = guildDB.users.find((u: any) => u.id === user.id)
-      // console.log('found', userToEdit)
+      // log('found', userToEdit)
       if(!userToEdit) {
         guildDB.users.push(user)
       } else {
         guildDB.users[guildDB.users.indexOf(userToEdit)] = {  ...userToEdit, ...user }
       }
-      // console.log('applied', JSON.stringify(guildDB))
+      // log('applied', JSON.stringify(guildDB))
       await this.db.collection('guilds').updateOne({
         id: guild.id
       }, {

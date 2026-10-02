@@ -10,6 +10,6 @@ export default async function setPrefix({db, user, guildId}: CallbackProps) {
   })
   
   if(updatedCb) 
-    console.log(updatedCb.prefix)
+    console.log('updPref', updatedCb.prefix)
   return [ 'prefix', updatedCb ? updatedCb.prefix : pref]
 }

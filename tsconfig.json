@@ -1,12 +1,14 @@
 {
   "ts-node": {
-    "esm": true
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
   },
   "compilerOptions": {
     "target": "ESNext",
     "module": "ESNext",
     "esModuleInterop": true,
     "moduleResolution": "node",
+    "preserveSymlinks": true,
     "strict": true,
     "importHelpers": true,
     "experimentalDecorators": true,
@@ -43,7 +45,7 @@
     "src/*.json",
     "src/types.ts",
     "src/main.d.ts",
-    "src/main.ts",  ],
+    "src/main.ts"  ],
   "exclude": [
     "node_modules", "build"
   ]

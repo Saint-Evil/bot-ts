@@ -30,10 +30,19 @@ export default async function getusers({ db, user, guildId, bot }: CallbackProps
   //   dbusers = []
   //   //return [ 'users', [] ]
   // }
-  (await dsguild.members.fetch()).forEach(({ guild, ...u }) => {
+  // Discord allows a full member list request about once per 30s per guild; fall back to the cache
+  const members = await dsguild.members.fetch().catch((err) => {
+    if (err?.name !== 'GatewayRateLimitError') throw err
+    console.warn('[getusers] members fetch rate limited, using cache', guildId)
+    return dsguild.members.cache
+  })
+  members.forEach((member) => {
+    const { guild, ...u } = member
     // console.log(u, guild)
     users.push({
       ...u,
+      // `_roles` is non-enumerable in discord.js 14 and gets lost on spread; the panel needs it
+      _roles: member.roles.cache.filter((role) => role.id !== guild.id).map((role) => role.id),
       avatar: u.user.displayAvatarURL({ extension: 'png' }),
       dbsettings: (dbusers && dbusers.some((dbu: any) => dbu.id === u.user.id)) ? dbusers.find((dbu: any) => dbu.id === u.user.id) : null
     })

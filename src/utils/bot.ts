@@ -6,7 +6,7 @@ import { IntentsBitField, Partials } from 'discord.js';
 import { Client } from 'discordx';
 
 export default new Client({
-  botGuilds: [(client) => client.guilds.cache.map((guild) => guild.id)],
+  botGuilds: [(client) => client.guilds.cache.map((guild) => guild.id).filter(id => id !== '704504626589991004')],
 
   // Discord intents
   intents: [
@@ -18,6 +18,7 @@ export default new Client({
     IntentsBitField.Flags.GuildVoiceStates,
     IntentsBitField.Flags.GuildMessageTyping,
     IntentsBitField.Flags.DirectMessageTyping,
+    IntentsBitField.Flags.DirectMessages,
     IntentsBitField.Flags.GuildPresences
   ],
 

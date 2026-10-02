@@ -12,8 +12,8 @@ export default async function setGreets({db, user, guildId, greets}: CallbackPro
       ...greets
     }
   }, {
-    returnOriginal: false,
-    returnDocument: true
+    returnDocument: 'after',
+    includeResultMetadata: true
   }))
 
   console.log('UPD CB', updatedCb)

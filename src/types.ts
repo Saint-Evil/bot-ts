@@ -1,9 +1,17 @@
-import { Role as DsRole } from 'discord.js';
+import { Channel, Role as DsRole, Guild as GuildX, GuildMember, TextChannel, MessageMentions, TextBasedChannel, SendableChannels, APIInteractionGuildMember, Embed } from 'discord.js';
 import { Client } from 'discordx'
 import { Image } from 'ytsr'
 import { Db, MongoClient, ObjectId } from "mongodb";
 import { Commands } from '@/commands';
 import { AudioPlayer } from '@discordjs/voice';
+
+export type PartialMessage = {
+  channel: SendableChannels | TextChannel | null,
+  guild?: GuildX | null,
+  guildId?: string | null,
+  member?: GuildMember | null,
+  mentions?: MessageMentions | null,
+}
 
 export type VideoItem = {
   duration?: any;
@@ -61,6 +69,7 @@ export type User = {
   id: string
   name: string | null
   nickname: string | null
+  username?: string | null
   _roles?: string[]
   roles?: Role[]
   status?: string | null
@@ -91,11 +100,11 @@ export type DsUser = {
 
 export type Action = {
   id: string
-  type: 'AddRole' | 'RemoveRole' | 'Ban' | 'Kick' | 'Warn' | 'Rename' | 'React' | 'Message' | 'Edit' | 'SoftBan' | 'DirectMessage'
-  target: string
-  condition: string
-  role: DsRole
-  emoji: string
+  type: 'AddRole' | 'RemoveRole' | 'Ban' | 'Kick' | 'Warn' | 'Rename' | 'React' | 'Message' | 'Edit' | 'SoftBan' | 'DirectMessage' | 'Disconnect' | 'ChannelName'
+  target?: string
+  condition?: string
+  role?: DsRole
+  emoji?: string
   message?: string
 }
 
@@ -205,6 +214,10 @@ export type CallbackProps = {
   prefix?: string
   setuser?: User
   autochannel?: AutoChannel
+  origin?: string
+  index?: number
+  url?: string
+  query?: string
 }
 
 export type AutoChannel = {
@@ -230,4 +243,19 @@ interface InterServerEvents {
 interface SocketData {
   name: string;
   age: number;
+}
+
+export interface MusicStatus {
+    status: string,
+    title:  string,
+    author: string,
+    time: string,
+    thumb: string,
+    url: string,
+    driver: string
+}
+
+export interface Response {
+  content?: string,
+  embeds?: Embed[]
 }
