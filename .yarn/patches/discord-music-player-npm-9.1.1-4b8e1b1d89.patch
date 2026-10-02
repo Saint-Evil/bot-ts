@@ -19,7 +19,7 @@ index d74199b77176cff46a4cc3c2af11c2dc1fbbe163..0e542f54dd9443162c929547057c0d0f
      InvalidPlaylist: 'There was no Playlist found with that link.',
      InvalidApple: 'There was no Apple music song with that link',
 diff --git a/dist/managers/Queue.js b/dist/managers/Queue.js
-index a06b17d152ca83afaf412c2364ae8be029528325..dc62add0cdb06b914364bcd941d6935ec2060ce9 100644
+index a06b17d152ca83afaf412c2364ae8be029528325..e24178e5ad33fe1ada6d9cea286027c1744ec6e6 100644
 --- a/dist/managers/Queue.js
 +++ b/dist/managers/Queue.js
 @@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
@@ -60,7 +60,40 @@ index a06b17d152ca83afaf412c2364ae8be029528325..dc62add0cdb06b914364bcd941d6935e
          })
              .on('error', (error) => {
              if (!/Status code|premature close/i.test(error.message))
-@@ -298,6 +296,8 @@ class Queue {
+@@ -250,10 +248,31 @@ class Queue {
+             this.connection.playAudioStream(resource)
+                 .then(__ => {
+                 this.setVolume(this.options.volume);
+-            });
++            })
++                .catch(error => this._playFailed(error));
+         });
+         return song;
+     }
++    /**
++     * Drops the song that could not start and moves on, so the queue doesn't get stuck on it
++     * (repeat modes are ignored for it: a broken song would fail again right away)
++     * @param {Error} error
++     * @private
++     */
++    _playFailed(error) {
++        this.player.emit('error', error?.message ?? String(error), this);
++        if (this.destroyed)
++            return;
++        this.isPlaying = false;
++        const failed = this.songs.shift();
++        if (this.songs.length === 0) {
++            this.player.emit('queueEnd', this);
++            return;
++        }
++        this.player.emit('songChanged', this, this.songs[0], failed);
++        this.play(this.songs[0], { immediate: true })
++            .catch(err => this.player.emit('error', err?.message ?? String(err), this));
++    }
+     /**
+      * Plays or Queues a playlist (in a VoiceChannel)
+      * @param {Playlist | string} search
+@@ -298,6 +317,8 @@ class Queue {
              time = 0;
          if (time >= this.nowPlaying.milliseconds)
              return this.skip();
