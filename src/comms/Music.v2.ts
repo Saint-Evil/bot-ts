@@ -4,7 +4,6 @@ import fs from 'fs';
 import { prepareTrack, cachedTrack, cleanupTracks as cleanupTrackFiles } from '../utils/soundtrack';
 import ytpl from 'ytpl';
 import ytsr, { Video, Image } from 'ytsr'
-import spdl from 'spdl-core';
 import { joinVoiceChannel, createAudioPlayer, createAudioResource, getVoiceConnection, AudioPlayerStatus } from '@discordjs/voice';
 import { DateTime, Duration } from 'luxon';
 import { ICommand, Song, VideoItem, PartialMessage, MusicStatus, Response } from '../types';
@@ -111,16 +110,6 @@ class Music implements ICommand {
         error('Cannot recreate queue')
       }
     }
-  }
-
-  getCurrentTrackStream = (guildId: string) => {
-    const error = (...msg: string[]) => console.error('[Music].[rebornQueue]', ...msg)
-    const log = (...msg: string[]) => console.log('[Music].[rebornQueue]', ...msg)
-    const currentQueue = this.queue.get(guildId)
-    if (currentQueue) {
-      return currentQueue.metaStream;
-    }
-    return null;
   }
 
   execute = (msg: PartialMessage, isSlash: boolean = false) => {
