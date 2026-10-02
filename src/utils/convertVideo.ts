@@ -1,23 +1,17 @@
 import ffmpeg from 'fluent-ffmpeg'
 import { dirname } from '@discordx/importer'
 import { cwd } from 'process';
+import { ffmpegPath, ffprobePath } from './ffmpegPath.js';
 
 const __dirname = dirname(import.meta.url);
 
 const convertVideo = (xs: any, format: string, rootDir: string = cwd()) => {
   const convertedFilePath = `${xs}.${format}`;
   return new Promise((resolve, reject) => {
-    if (!process.env.FFMPEG_PATH) {
-      console.error('No process.env.FFMPEG_PATH')
-      return reject(new Error('No process.env.FFMPEG_PATH'))
-    }
-    if (!process.env.FFPROBE_PATH) {
-      console.error('No process.env.FFPROBE_PATH')
-      return reject(new Error('No process.env.FFPROBE_PATH'))
-    }
-    ffmpeg(rootDir+'/public/'+xs+'.webm')
-      .setFfmpegPath(process.env.FFMPEG_PATH)
-      .setFfprobePath(process.env.FFPROBE_PATH)
+    const command = ffmpeg(rootDir+'/public/'+xs+'.webm').setFfmpegPath(ffmpegPath())
+    const probe = ffprobePath()
+    if (probe) command.setFfprobePath(probe)
+    command
       .toFormat(format)
       .on("start", commandLine => {
         console.log(`Spawned Ffmpeg with command: ${commandLine}`);

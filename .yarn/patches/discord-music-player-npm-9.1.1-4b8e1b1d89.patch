@@ -19,7 +19,7 @@ index d74199b77176cff46a4cc3c2af11c2dc1fbbe163..0e542f54dd9443162c929547057c0d0f
      InvalidPlaylist: 'There was no Playlist found with that link.',
      InvalidApple: 'There was no Apple music song with that link',
 diff --git a/dist/managers/Queue.js b/dist/managers/Queue.js
-index a06b17d152ca83afaf412c2364ae8be029528325..e24178e5ad33fe1ada6d9cea286027c1744ec6e6 100644
+index a06b17d152ca83afaf412c2364ae8be029528325..127483d44b04664e900d0ea8d0424dde53ad8d41 100644
 --- a/dist/managers/Queue.js
 +++ b/dist/managers/Queue.js
 @@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
@@ -285,10 +285,10 @@ index 8c90f698a0ee1915c17d7075d7c8dfb59edefd1c..4ed866d61c17eae1d80e3a739f8ee8c5
                  return song;
 diff --git a/dist/utils/YtDlpStream.js b/dist/utils/YtDlpStream.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..a491b6b193b33b57a5a4f091c134949c8a9d920a
+index 0000000000000000000000000000000000000000..b1277d8d101f436e4c7b88b0cd3beddec6e6d77a
 --- /dev/null
 +++ b/dist/utils/YtDlpStream.js
-@@ -0,0 +1,83 @@
+@@ -0,0 +1,84 @@
 +"use strict";
 +Object.defineProperty(exports, "__esModule", { value: true });
 +exports.createYtDlpStream = exports.resolveYtDlpPath = void 0;
@@ -308,11 +308,12 @@ index 0000000000000000000000000000000000000000..a491b6b193b33b57a5a4f091c134949c
 +}
 +exports.resolveYtDlpPath = resolveYtDlpPath;
 +/**
-+ * ffmpeg for yt-dlp's section downloads: FFMPEG_PATH env, then ffmpeg-static, then ffmpeg from PATH
++ * ffmpeg for yt-dlp's section downloads: FFMPEG_PATH env (if the file exists), then ffmpeg-static, then ffmpeg from PATH
 + * @returns {string}
 + */
 +function resolveFfmpegPath() {
-+    if (process.env.FFMPEG_PATH)
++    // An FFMPEG_PATH pointing to a missing file (e.g. a .env copied from another machine) is ignored
++    if (process.env.FFMPEG_PATH && (0, fs_1.existsSync)((0, path_1.resolve)(process.env.FFMPEG_PATH)))
 +        return (0, path_1.resolve)(process.env.FFMPEG_PATH);
 +    try {
 +        return require('ffmpeg-static') || 'ffmpeg';
