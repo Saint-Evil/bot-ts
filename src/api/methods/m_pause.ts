@@ -5,5 +5,6 @@ export default async function m_pause({ db, user, guildId, commands }: CallbackP
     return [ 'error', 'Not authorized' ]
     
   /* @ts-ignore */
-  commands?.music.pause({ id: guildId })  
+  commands?.music.pause({ id: guildId })
+  return ['service']
 }

@@ -9,12 +9,12 @@ export default async function m_play({ db, user, guildId, commands }: CallbackPr
 
   const serverQueue = commands?.music.queue.get(guildId);
 
-  if(!serverQueue)
-    return [ 'error', 'Queue is not found']
-  
+  if(!serverQueue || serverQueue.destroyed || !serverQueue.isPlaying)
+    return [ 'error', 'Nothing is playing']
+
   if (serverQueue.paused && serverQueue.nowPlaying) {
-    /* @ts-ignore */
-    commands?.music.play({ id: guildId })
+    // play() takes the guild id itself, unlike pause() which takes a guild-like object
+    await commands?.music.play(guildId)
   } else {
     /* @ts-ignore */
     commands?.music.pause({ id: guildId })
