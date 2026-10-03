@@ -27,6 +27,8 @@ class Music implements ICommand {
   db: Db | null = null;
   player: Player | null = null;
   random: Map<string,boolean> = new Map<string,boolean>();
+  // Songs finished or skipped since the queue started, per guild (shown in the panel)
+  played: Map<string, number> = new Map<string, number>();
 
   init = (bot: Client, db: Db): void => {
     if(!this.bot) this.bot = bot;
@@ -56,8 +58,14 @@ class Music implements ICommand {
     const queueChanged = (q: Queue) => EventBus.emit({ guild: q.guild.id, evt: 'queuechanged' })
     player.on('songAdd', queueChanged)
     player.on('playlistAdd', queueChanged)
-    player.on('songFirst', queueChanged)
+    player.on('songFirst', (q) => {
+      // First song of a fresh queue: start counting anew
+      this.played.set(q.guild.id, 0)
+      queueChanged(q)
+    })
     player.on('queueEnd', (q) => {
+      // The last song ends without a songChanged
+      this.played.set(q.guild.id, (this.played.get(q.guild.id) ?? 0) + 1)
       queueChanged(q)
       this.cleanupTracks()
     })
@@ -66,6 +74,7 @@ class Music implements ICommand {
       this.cleanupTracks()
     })
     player.on('songChanged',(q, newSong, oldSong) => {
+        this.played.set(q.guild.id, (this.played.get(q.guild.id) ?? 0) + 1)
         EventBus.emit({ guild: q.guild.id, evt: 'songchanged' })
 
         prepareTrack(newSong.url, q.guild.id).catch(() => {})
@@ -598,6 +607,7 @@ class Music implements ICommand {
         time: getSongPosition(api),
         thumb: getThumbnail(api),
         url: (serverQueue && serverQueue.nowPlaying) ? serverQueue.nowPlaying.url : null,
+        played: this.played.get(guildId) ?? 0,
         driver: 'DMP'
       } as unknown as T
     }
