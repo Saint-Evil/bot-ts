@@ -196,11 +196,11 @@ class Music implements ICommand {
                 }).catch(this.notifyPlayError(msg))
               }
               else if(url.startsWith('https://www.youtube.com/watch?') || url.startsWith('https://youtube') || url.startsWith('https://music.youtube') || url.startsWith('https://youtu.be/') || url.startsWith('https://open.spotify.com/track/')) {
-                serverQueue.play(url).catch(this.notifyPlayError(msg))
+                serverQueue.play(url, { requestedBy: msg.member.user }).catch(this.notifyPlayError(msg))
               }
               else if (url.startsWith('"')) {
                 const sreq = [ url, ...args ].join(" ").replace('"', '')
-                serverQueue.play(sreq).catch(this.notifyPlayError(msg))
+                serverQueue.play(sreq, { requestedBy: msg.member.user }).catch(this.notifyPlayError(msg))
               } else {
                 const reply = { content: 'This source is not supported yet' }
                 return isSlash ? reply : msg.channel?.send(reply)
