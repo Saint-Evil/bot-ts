@@ -103,10 +103,10 @@ index a06b17d152ca83afaf412c2364ae8be029528325..127483d44b04664e900d0ea8d0424dde
              immediate: true,
              seek: time
 diff --git a/dist/utils/Utils.js b/dist/utils/Utils.js
-index 8c90f698a0ee1915c17d7075d7c8dfb59edefd1c..4ed866d61c17eae1d80e3a739f8ee8c5117e6264 100644
+index 8c90f698a0ee1915c17d7075d7c8dfb59edefd1c..316675093db9c816fe51103a9f161756e86bb4fc 100644
 --- a/dist/utils/Utils.js
 +++ b/dist/utils/Utils.js
-@@ -6,7 +6,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
+@@ -6,12 +6,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
  exports.Utils = void 0;
  const __1 = require("..");
  const isomorphic_unfetch_1 = __importDefault(require("isomorphic-unfetch"));
@@ -114,7 +114,13 @@ index 8c90f698a0ee1915c17d7075d7c8dfb59edefd1c..4ed866d61c17eae1d80e3a739f8ee8c5
  const spotify_url_info_1 = __importDefault(require("spotify-url-info"));
  const apple_music_metadata_1 = require("apple-music-metadata");
  const youtubei_1 = require("youtubei");
-@@ -54,50 +53,46 @@ class Utils {
+ const discord_js_1 = require("discord.js");
+ let YouTube = new youtubei_1.Client();
++let YouTubeMusic = new youtubei_1.MusicClient();
+ const { getData, getPreview } = (0, spotify_url_info_1.default)(isomorphic_unfetch_1.default);
+ class Utils {
+     /**
+@@ -54,53 +54,95 @@ class Utils {
       * @param {number} [Limit=1]
       * @return {Promise<Song[]>}
       */
@@ -178,6 +184,8 @@ index 8c90f698a0ee1915c17d7075d7c8dfb59edefd1c..4ed866d61c17eae1d80e3a739f8ee8c5
 +                SearchOptions.sortBy = SOptions.sortBy === 'view count' ? 'view' : SOptions.sortBy;
 +            let Result = await YouTube.search(Search, SearchOptions);
 +            let found = Result.items.filter(item => item?.id);
++            if (found.length === 0)
++                return await this.musicSearch(Search, SOptions, Queue, Limit);
 +            let songs = found
 +                .filter(item => !this.isTooLong(item.duration ?? 0, Queue))
 +                .slice(0, Limit)
@@ -199,7 +207,84 @@ index 8c90f698a0ee1915c17d7075d7c8dfb59edefd1c..4ed866d61c17eae1d80e3a739f8ee8c5
              throw __1.DMPErrors.SEARCH_NULL;
          }
      }
-@@ -138,22 +133,19 @@ class Utils {
++    /**
++     * Search for songs on YouTube Music (matches artist + title exactly, returns official audio)
++     * @param {string} Search
++     * @param {PlayOptions} SOptions
++     * @param {Queue} Queue
++     * @param {number} [Limit=1]
++     * @return {Promise<Song[]>}
++     */
++    static async musicSearch(Search, SOptions = __1.DefaultPlayOptions, Queue, Limit = 1) {
++        SOptions = Object.assign({}, __1.DefaultPlayOptions, SOptions);
++        let Result = await YouTubeMusic.search(Search, 'song').catch(() => null);
++        let found = (Result?.items ?? []).filter(item => item?.id);
++        let songs = found
++            .filter(item => !this.isTooLong(item.duration ?? 0, Queue))
++            .slice(0, Limit)
++            .map(item => new __1.Song({
++            name: item.title,
++            url: `https://www.youtube.com/watch?v=${item.id}`,
++            duration: this.msToTime((item.duration ?? 0) * 1000),
++            author: (item.artists ?? []).map(artist => artist.name).join(', '),
++            isLive: false,
++            thumbnail: `https://i.ytimg.com/vi/${item.id}/hqdefault.jpg`,
++        }, Queue, SOptions.requestedBy));
++        if (songs.length === 0)
++            throw found.length > 0 ? __1.DMPErrors.SONG_TOO_LONG : __1.DMPErrors.SEARCH_NULL;
++        return songs;
++    }
++    /**
++     * Finds a track known by artist and title (Spotify, Apple Music): YouTube Music first, then YouTube
++     * @param {string} Search
++     * @param {PlayOptions} SOptions
++     * @param {Queue} Queue
++     * @return {Promise<Song>}
++     */
++    static async trackSearch(Search, SOptions, Queue) {
++        try {
++            return (await this.musicSearch(Search, SOptions, Queue))[0];
++        }
++        catch (e) {
++            if (e === __1.DMPErrors.SONG_TOO_LONG)
++                throw e;
++            return (await this.search(Search, SOptions, Queue))[0];
++        }
++    }
+     /**
+      * Search for Song via link
+      * @param {string} Search
+@@ -116,21 +158,25 @@ class Utils {
+             try {
+                 let AppleResult = await (0, apple_music_metadata_1.getSong)(Search);
+                 if (AppleResult) {
+-                    let SearchResult = await this.search(`${AppleResult.artist} - ${AppleResult.title}`, SOptions, Queue);
+-                    return SearchResult[0];
++                    return await this.trackSearch(`${AppleResult.artist} - ${AppleResult.title}`, SOptions, Queue);
+                 }
+             }
+             catch (e) {
++                if (e === __1.DMPErrors.SONG_TOO_LONG)
++                    throw e;
++                console.error('[discord-music-player] Apple Music link failed:', Search, e);
+                 throw __1.DMPErrors.INVALID_APPLE;
+             }
+         }
+         else if (SpotifyLink) {
+             try {
+                 let SpotifyResult = await getPreview(Search);
+-                let SearchResult = await this.search(`${SpotifyResult.artist} - ${SpotifyResult.title}`, SOptions, Queue);
+-                return SearchResult[0];
++                return await this.trackSearch(`${SpotifyResult.artist} - ${SpotifyResult.title}`, SOptions, Queue);
+             }
+             catch (e) {
++                if (e === __1.DMPErrors.SONG_TOO_LONG)
++                    throw e;
++                console.error('[discord-music-player] Spotify link failed:', Search, e);
+                 throw __1.DMPErrors.INVALID_SPOTIFY;
+             }
+         }
+@@ -138,22 +184,19 @@ class Utils {
              let VideoID = this.parseVideo(Search);
              if (!VideoID)
                  throw __1.DMPErrors.SEARCH_NULL;
@@ -228,16 +313,74 @@ index 8c90f698a0ee1915c17d7075d7c8dfb59edefd1c..4ed866d61c17eae1d80e3a739f8ee8c5
                  seekTime: SOptions.timecode && VideoTimecode ? Number(VideoTimecode) * 1000 : null,
              }, Queue, SOptions.requestedBy);
          }
-@@ -172,6 +164,8 @@ class Utils {
+@@ -172,6 +215,8 @@ class Utils {
          if (Search instanceof __1.Song)
              return Search;
          _Song = await this.link(Search, SOptions, Queue).catch(error => {
-+            if (error === __1.DMPErrors.SONG_TOO_LONG)
++            if ([__1.DMPErrors.SONG_TOO_LONG, __1.DMPErrors.INVALID_SPOTIFY, __1.DMPErrors.INVALID_APPLE].includes(error))
 +                throw error;
              if (!(error instanceof TypeError)) {
                  throw __1.DMPErrors.UNKNOWN; //Ignore typeError
              }
-@@ -258,12 +252,7 @@ class Utils {
+@@ -208,7 +253,7 @@ class Utils {
+             AppleResult.songs = (await Promise.all(AppleResultData.tracks.map(async (track, index) => {
+                 if (Limit !== -1 && index >= Limit)
+                     return null;
+-                const Result = await this.search(`${track.artist} - ${track.title}`, SOptions, Queue).catch(() => null);
++                const Result = await this.trackSearch(`${track.artist} - ${track.title}`, SOptions, Queue).then(song => [song]).catch(() => null);
+                 if (Result && Result[0]) {
+                     Result[0].data = SOptions.data;
+                     return Result[0];
+@@ -228,26 +273,33 @@ class Utils {
+             if (!SpotifyResultData || !['playlist', 'album'].includes(SpotifyResultData.type))
+                 throw __1.DMPErrors.INVALID_PLAYLIST;
+             let SpotifyResult = {
+-                name: SpotifyResultData.name,
+-                author: SpotifyResultData.type === 'playlist' ? SpotifyResultData.owner.display_name : SpotifyResultData.artists[0].name,
++                name: SpotifyResultData.name ?? SpotifyResultData.title,
++                author: SpotifyResultData.subtitle
++                    ?? (SpotifyResultData.type === 'playlist' ? SpotifyResultData.owner?.display_name : SpotifyResultData.artists?.[0]?.name)
++                    ?? 'Spotify',
+                 url: Search,
+                 songs: [],
+                 type: SpotifyResultData.type
+             };
+-            SpotifyResult.songs = (await Promise.all((SpotifyResultData.tracks?.items ?? []).map(async (track, index) => {
+-                if (Limit !== -1 && index >= Limit)
+-                    return null;
+-                if (SpotifyResult.type === 'playlist')
+-                    track = track.track;
+-                const Result = await this.search(`${track.artists[0].name} - ${track.name}`, SOptions, Queue).catch(() => null);
+-                if (Result && Result[0]) {
+-                    Result[0].data = SOptions.data;
+-                    return Result[0];
++            // Embed format: trackList with title + subtitle ("Artist, Featured"); Web API format: tracks.items
++            let SpotifyTracks = SpotifyResultData.trackList
++                ? SpotifyResultData.trackList.map(track => ({ artist: (track.subtitle ?? '').split(',')[0].trim(), name: track.title }))
++                : (SpotifyResultData.tracks?.items ?? [])
++                    .map(item => SpotifyResultData.type === 'playlist' ? item.track : item)
++                    .filter(track => track)
++                    .map(track => ({ artist: track.artists?.[0]?.name ?? '', name: track.name }));
++            if (Limit !== -1)
++                SpotifyTracks = SpotifyTracks.slice(0, Limit);
++            // A few searches at a time: dozens of parallel requests get throttled by YouTube
++            for (let i = 0; i < SpotifyTracks.length; i += 5) {
++                const Results = await Promise.all(SpotifyTracks.slice(i, i + 5).map(track => this.trackSearch(track.artist ? `${track.artist} - ${track.name}` : track.name, SOptions, Queue).catch(() => null)));
++                for (const song of Results) {
++                    if (!song)
++                        continue;
++                    song.data = SOptions.data;
++                    SpotifyResult.songs.push(song);
+                 }
+-                else
+-                    return null;
+-            })))
+-                .filter((V) => V !== null);
++            }
+             if (SpotifyResult.songs.length === 0)
+                 throw __1.DMPErrors.INVALID_PLAYLIST;
+             if (SOptions.shuffle)
+@@ -258,12 +310,7 @@ class Utils {
              let PlaylistID = this.parsePlaylist(Search);
              if (!PlaylistID)
                  throw __1.DMPErrors.INVALID_PLAYLIST;
@@ -251,7 +394,7 @@ index 8c90f698a0ee1915c17d7075d7c8dfb59edefd1c..4ed866d61c17eae1d80e3a739f8ee8c5
              if (!YouTubeResultData || Object.keys(YouTubeResultData).length === 0)
                  throw __1.DMPErrors.INVALID_PLAYLIST;
              let YouTubeResult = {
-@@ -273,18 +262,25 @@ class Utils {
+@@ -273,18 +320,25 @@ class Utils {
                  songs: [],
                  type: 'playlist'
              };

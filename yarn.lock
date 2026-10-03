@@ -1296,7 +1296,7 @@ __metadata:
 
 "discord-music-player@patch:discord-music-player@npm%3A9.1.1#~/.yarn/patches/discord-music-player-npm-9.1.1-4b8e1b1d89.patch":
   version: 9.1.1
-  resolution: "discord-music-player@patch:discord-music-player@npm%3A9.1.1#~/.yarn/patches/discord-music-player-npm-9.1.1-4b8e1b1d89.patch::version=9.1.1&hash=3ca182"
+  resolution: "discord-music-player@patch:discord-music-player@npm%3A9.1.1#~/.yarn/patches/discord-music-player-npm-9.1.1-4b8e1b1d89.patch::version=9.1.1&hash=15cd88"
   dependencies:
     "@discordjs/opus": "npm:^0.8.0"
     "@discordjs/voice": "npm:^0.11.0"
@@ -1312,7 +1312,7 @@ __metadata:
     youtubei: "npm:^0.0.1-rc.34"
     ytdl-core: "npm:^4.11.2"
     ytsr: "npm:^3.6.0"
-  checksum: 10c0/2a826fe498d8908ef3eae6e798576a86691ebe7e1b652173c47d5294ca2f94408a8ce23613ee04a9aaedddaf3d12ab3fb9e8957d59e17af938f95adeb4b18d4d
+  checksum: 10c0/13a5fd4f3e49a2c9c05b0a77ace6560ebcedc9df2524af29b4e539a83f138f47fe79987fd2a256b22460b1482494fe06a828625a1f8d1ef3a81c946b31d444a2
   languageName: node
   linkType: hard
 
